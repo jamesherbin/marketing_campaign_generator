@@ -17,14 +17,14 @@ channel_coordinator = Agent(
     model='gemini-2.5-flash',
     name='channel_coordinator',
     description='Channel Coordinator Agent',
-    instruction=""
+    instruction="You are a Social Media Marketing Manager.  Generate a list of channels that are most appropriate for a social media campaign.  Describe how to programatticaly submit advertising to these channels."
 )
 
 scheduler = Agent(
     model='gemini-2.5-flash',
     name='scheduler',
     description='Scheduler Agent',
-    instruction=""
+    instruction="You are a Social Media Marketing Manager.  Generate a Weekly schedule for social media advertising."
 )
 
 root_agent = Agent(
