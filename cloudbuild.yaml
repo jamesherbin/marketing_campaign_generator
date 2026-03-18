@@ -164,7 +164,6 @@ steps:
 # Build configuration
 options:
   logging: CLOUD_LOGGING_ONLY
-  machineType: 'E2_STANDARD'
-
+  
 # Build timeout
 timeout: '1200s'
