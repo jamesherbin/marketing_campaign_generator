@@ -30,7 +30,7 @@ substitutions:
   #_MAP_BASE_URL: ''
   # Deploy flags (set to 'false' to skip)
   
-  _BUILD_AGENT: 'false'  
+  _BUILD_AGENT: 'true'  
   _BUILD_BACKEND: 'false'
   _PUSH_BACKEND: 'false'
   _DEPLOY_BACKEND: 'false'
