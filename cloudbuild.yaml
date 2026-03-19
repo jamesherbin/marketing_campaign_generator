@@ -42,6 +42,22 @@ steps:
   # BACKEND BUILD & DEPLOY
   # =============================================================================
 
+  # Build Agent Docker Image
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        if [ "${_BUILD_AGENT}" = "true" ]; then
+          docker build \
+            -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_API_SERVICE_NAME}:${BUILD_ID} \
+            -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_API_SERVICE_NAME}:latest \
+            ./planning_agent
+        else
+          echo "Skipping Agent build"
+        fi
+    id: 'build-agent'
+
   # Build backend Docker image
   - name: 'gcr.io/cloud-builders/docker'
     entrypoint: 'bash'
@@ -52,11 +68,12 @@ steps:
           docker build \
             -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_API_SERVICE_NAME}:${BUILD_ID} \
             -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_API_SERVICE_NAME}:latest \
-            ./dashboard/backend
+            ./backend
         else
           echo "Skipping backend build"
         fi
     id: 'build-backend'
+    waitFor: ['build-agent']
 
   # Push backend image
   - name: 'gcr.io/cloud-builders/docker'
