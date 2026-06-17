@@ -9,6 +9,18 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { AnimatedTitle } from '@/components/ui/Title'
 import { CelestialBackground } from '@/components/ui/CelestialBackground'
+import { createApi } from '@reduxjs/toolkit/query/react'
+import type { Messages } from './types'
+
+export const agentApi = createApi({
+	reducerPath: 'agentApi',
+	baseQuery: fetchBaseQuery({ baseUrl: 'http://localhost:4999/api/test'}),
+	endpoints: (build) => ({
+  	  getPokemonByName: build.query<Messages, string>({
+    	    query: (name) => `agent/${name}`,
+    }),
+  }),
+)}
 
 export default function HomePage() {
   const [eventCode, setEventCode] = useState('')
@@ -20,6 +32,12 @@ export default function HomePage() {
       setIsNavigating(true)
       window.location.href = `/e/${eventCode.trim().toLowerCase()}`
     }
+  }
+
+  const serverTest = async () => {
+    const response = await fetch('/api/test')
+    const data = await response.json()
+    console.log(data)
   }
 
   return (
@@ -199,6 +217,7 @@ export default function HomePage() {
             >
               L5
             </a>
+          <button onClick={serverTest}>Test Server</button>
           </div>
 
           <p className="text-xs text-space-lavender/40">
