@@ -1,7 +1,5 @@
-# marketing_campaign_generator
+# Marketing Campaign Generator
 Generate Marketing Campaigns for Brand Awareness
-
-AI Agent Based Marketing Campaign Generator.
 
 Planning and Strategy Agent
 -Goal and Objective Agent
@@ -26,4 +24,4 @@ Monitoring Agent
 -KPI Reporter
 -Campaign Analyzer
 -Tactic and Strategy Adjuster
--Stakeholder Insight Reporter
+-Sakeholder Insight Reporter
