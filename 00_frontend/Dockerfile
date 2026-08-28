@@ -1,4 +1,4 @@
-# Way Back Home Frontend - Production Dockerfile
+# Marketing Campaign Dashboard - Production Dockerfile
 # Multi-stage build for optimized Next.js standalone output
 
 # =============================================================================
@@ -22,7 +22,6 @@ WORKDIR /app
 
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/lib ./lib
 COPY . .
 
 # Build arguments for environment variables (needed at build time for NEXT_PUBLIC_*)

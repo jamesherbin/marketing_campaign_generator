@@ -70,7 +70,7 @@ steps:
           docker build \
             -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_API_SERVICE_NAME}:${BUILD_ID} \
             -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_API_SERVICE_NAME}:latest \
-            ./backend
+            ./00_backend
         else
           echo "Skipping backend build"
         fi
@@ -135,7 +135,7 @@ steps:
             --build-arg NEXT_PUBLIC_FRONTEND_URL=${_MAP_BASE_URL} \
             -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_FRONTEND_SERVICE_NAME}:${BUILD_ID} \
             -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_FRONTEND_SERVICE_NAME}:latest \
-            ./dashboard/frontend
+            ./00_frontend
         else
           echo "Skipping frontend build"
         fi

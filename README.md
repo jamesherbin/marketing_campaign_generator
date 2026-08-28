@@ -1,138 +1,161 @@
 # Marketing Campaign Generator
 
-> An intelligent, multi-agent system for planning, developing, executing, and optimizing brand-awareness campaigns.
+An end-to-end campaign workspace built around a shared `CampaignState` contract. A FastAPI orchestrator advances campaigns through planning, development, execution approval, and monitoring; Google ADK agents can supply phase outputs; and a Next.js dashboard provides the operator interface.
 
-The **Marketing Campaign Generator** transforms a campaign objective into a coordinated marketing strategy. Specialized agents collaborate across the campaign lifecycle—from audience research and positioning to channel execution, KPI reporting, and continuous improvement.
-
-## Overview
-
-Marketing campaigns often require multiple teams, tools, and handoffs. This project organizes that work into four focused agent groups:
-
-1. **Planning & Strategy** — defines the campaign direction.
-2. **Development** — turns the strategy into content and a media plan.
-3. **Execution** — launches and coordinates campaign activity.
-4. **Monitoring** — measures performance and recommends improvements.
+## Architecture
 
 ```mermaid
 flowchart LR
-    A[Campaign Brief] --> B[Planning & Strategy]
-    B --> C[Development]
-    C --> D[Execution]
-    D --> E[Monitoring]
-    E -- Insights & Adjustments --> B
+    UI[Next.js dashboard] -->|same-origin proxy| API[FastAPI orchestrator]
+    API --> STATE[CampaignState repository]
+    API --> RUNNERS{Runner mode}
+    RUNNERS -->|deterministic| FIXTURES[Local placeholder runners]
+    RUNNERS -->|adk| AGENTS[Google ADK agents]
+    AGENTS --> PLAN[Planning]
+    PLAN --> DEV[Development]
+    DEV --> EXEC[Execution]
+    EXEC -->|human approval| MON[Monitoring]
 ```
 
-## Agent Architecture
+| Directory | Purpose |
+| --- | --- |
+| `00_frontend/` | Next.js 14 campaign dashboard and backend proxy routes |
+| `00_backend/` | FastAPI API, `CampaignState` models, orchestration, runners, and tests |
+| `agents/` | Importable Google ADK agents for each campaign phase |
 
-### 1. Planning & Strategy Agent
+Campaign state is currently stored in memory. Restarting the backend clears all campaigns.
 
-Builds the strategic foundation of the campaign.
+## Campaign lifecycle
 
-- **Goal & Objective Agent** — converts business goals into measurable campaign objectives.
-- **Research & Audience Agent** — researches the market and defines target audience segments.
-- **Positioning & Value Proposition Agent** — establishes the campaign's differentiated position and core value.
-- **Key Messages & Channels Agent** — defines key messages and recommends the right communication channels.
-- **Budgeting Agent** — allocates budget across tactics, channels, and campaign phases.
+1. Create a typed campaign brief.
+2. Run planning and development.
+3. Prepare execution activities and pause at the human approval gate.
+4. Approve or reject execution.
+5. Continue an approved campaign into monitoring.
 
-### 2. Development Agent
+The dashboard displays campaign status, phase progress, strategy, creative assets, execution activities, approvals, KPIs, and recommendations.
 
-Transforms the approved strategy into campaign-ready assets and plans.
+## Prerequisites
 
-- **Content Design & Creation Agent** — produces concepts, copy, creative briefs, and content variations.
-- **Message & Value Proposition Agent** — adapts the campaign message to each audience and format.
-- **Channel Selection & Media Planning Agent** — builds the channel mix, media plan, and delivery approach.
+- Python 3.11 or newer
+- Node.js 20 or newer and npm
+- A Gemini API key or Google Cloud credentials only when using ADK mode
 
-### 3. Execution Agent
+## Run locally
 
-Coordinates campaign publishing and delivery.
+### 1. Start the backend
 
-- **Social Media Executor** — prepares and publishes platform-specific social content.
-- **Email Newsletter Executor** — creates and delivers email campaign sequences.
-- **Digital Ad Executor** — prepares paid advertising campaigns and creative variations.
-- **Channel Coordinator** — keeps messaging and timing consistent across channels.
-- **Scheduler** — manages the campaign calendar and publishing cadence.
+```bash
+cd 00_backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+uvicorn main:app --reload --port 8080
+```
 
-### 4. Monitoring Agent
+The API is available at `http://localhost:8080`; interactive OpenAPI documentation is at `http://localhost:8080/docs`.
 
-Measures results and feeds insights back into the campaign strategy.
+Verify it with:
 
-- **KPI Reporter** — tracks performance against campaign objectives.
-- **Campaign Analyzer** — identifies trends, strengths, risks, and opportunities.
-- **Tactic & Strategy Adjuster** — recommends changes based on campaign performance.
-- **Stakeholder Insight Reporter** — turns campaign data into clear, decision-ready updates.
+```bash
+curl http://localhost:8080/health
+```
 
-## Campaign Workflow
+### 2. Start the frontend
 
-| Phase | Input | Output |
+In another terminal:
+
+```bash
+cd 00_frontend
+npm install
+cp .env.example .env.local
+npm run dev
+```
+
+Open `http://localhost:3000`. The browser talks to same-origin Next.js route handlers, which proxy campaign requests to the backend.
+
+## Runner modes
+
+The backend defaults to deterministic runners. They generate schema-valid placeholder results without model calls, making local development and tests reproducible.
+
+To call the agents in `agents/`, enable ADK mode and provide authentication:
+
+```bash
+cd 00_backend
+export CAMPAIGN_RUNNER_MODE=adk
+export GEMINI_API_KEY=your-key
+uvicorn main:app --reload --port 8080
+```
+
+You can use `GOOGLE_API_KEY` instead. For Vertex AI, set `GOOGLE_GENAI_USE_VERTEXAI=true`, `GOOGLE_CLOUD_PROJECT`, and `GOOGLE_CLOUD_LOCATION`, then configure Application Default Credentials.
+
+The ADK runner adapter:
+
+- creates an isolated session for each phase run;
+- serializes the current campaign into session state;
+- explicitly exposes completed upstream phase outputs to subagents;
+- requests the phase's JSON schema;
+- validates the final response back into the corresponding `CampaignState` output model.
+
+`GET /health` reports the active runner mode.
+
+## API
+
+| Method | Route | Description |
 | --- | --- | --- |
-| Planning | Campaign brief and business goals | Objectives, audience, positioning, messages, channels, and budget |
-| Development | Approved campaign strategy | Creative assets, content variants, and media plan |
-| Execution | Campaign assets and schedule | Coordinated social, email, and digital advertising activity |
-| Monitoring | Channel and campaign performance data | KPI reports, insights, and optimization recommendations |
+| `GET` | `/health` | Service health and runner mode |
+| `POST` | `/api/v1/campaigns` | Create a campaign |
+| `GET` | `/api/v1/campaigns` | List campaigns |
+| `GET` | `/api/v1/campaigns/{id}` | Get campaign state |
+| `POST` | `/api/v1/campaigns/{id}/run` | Advance until complete or blocked by approval |
+| `POST` | `/api/v1/campaigns/{id}/phases/{phase}/run` | Run one valid phase |
+| `POST` | `/api/v1/campaigns/{id}/execution/approval` | Approve or reject execution |
 
-## Key Capabilities
+Invalid lifecycle transitions return HTTP `409`.
 
-- End-to-end brand-awareness campaign generation
-- Audience-led strategy and positioning
-- Cross-channel content and media planning
-- Coordinated social, email, and digital ad execution
-- Budget allocation and campaign scheduling
-- KPI reporting and performance analysis
-- Continuous tactical and strategic optimization
-- Stakeholder-friendly campaign reporting
+## Configuration
 
-## Example Campaign Brief
+Backend variables are loaded and validated by `campaign.config.Settings` from the process environment and an optional `00_backend/.env` file.
 
-```yaml
-brand: Acme
-campaign_goal: Increase brand awareness
-target_audience: Small business owners
-duration: 8 weeks
-budget: 25000 USD
-channels:
-  - social_media
-  - email
-  - digital_ads
-success_metrics:
-  - reach
-  - impressions
-  - engagement_rate
-  - branded_search_lift
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `CAMPAIGN_RUNNER_MODE` | `deterministic` | Select `deterministic` or `adk` runners |
+| `PORT` | `8080` | Backend port when running `main.py` |
+| `LOG_LEVEL` | `info` | Backend logging level |
+| `GEMINI_API_KEY` / `GOOGLE_API_KEY` | unset | Gemini authentication for ADK mode |
+| `GOOGLE_GENAI_USE_VERTEXAI` | `false` | Use Vertex AI instead of the Gemini API |
+| `GOOGLE_CLOUD_PROJECT` | unset | Vertex AI project |
+| `GOOGLE_CLOUD_LOCATION` | `us-central1` | Vertex AI region |
+| `API_URL` | `http://localhost:8080` | Server-side backend URL used by the frontend proxy |
+
+Do not commit real credentials. Browser code does not need an API key.
+
+## Tests and builds
+
+Run backend tests:
+
+```bash
+cd 00_backend
+source .venv/bin/activate
+pytest
 ```
 
-## Getting Started
+Build the frontend:
 
-The project is currently in the design stage. Once the implementation is available, this section will include:
+```bash
+cd 00_frontend
+npm run build
+```
 
-- Prerequisites and environment setup
-- Installation instructions
-- Model and provider configuration
-- Required channel integrations
-- Commands for generating and running a campaign
+## Current limitations
 
-## Roadmap
+- Campaign storage is in memory rather than a durable database.
+- Deterministic runners are placeholders, not live channel integrations.
+- Execution prepares publication activities but does not publish to external advertising, email, or social platforms.
+- Monitoring returns an empty-data baseline until channel analytics are connected.
+- Campaign content and execution packages require human review.
 
-- [ ] Define shared campaign data models
-- [ ] Implement planning and strategy workflows
-- [ ] Add content development pipelines
-- [ ] Connect social, email, and advertising platforms
-- [ ] Build scheduling and channel coordination
-- [ ] Add campaign analytics and KPI dashboards
-- [ ] Introduce human approval checkpoints
-- [ ] Add automated optimization recommendations
+## Responsible use
 
-## Responsible Use
-
-Campaign content should be reviewed by a human before publication. Teams should verify claims, protect customer data, follow platform policies, respect consent and opt-out requirements, and comply with applicable advertising and privacy laws.
-
-## Contributing
-
-Contributions, ideas, and feedback are welcome. Open an issue to propose a feature or describe a problem before submitting a major change.
-
-## License
-
-Add the project's license here before distribution.
-
----
-
-Built to help marketing teams move from **brief** to **measurable campaign** with clarity, consistency, and speed.
+Review generated content before publication. Verify claims, protect customer data, respect consent and opt-out requirements, follow platform policies, and comply with applicable advertising and privacy laws.
