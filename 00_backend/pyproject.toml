@@ -6,7 +6,10 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115,<1",
+    "google-adk==1.25.1",
+    "google-genai==1.64.0",
     "pydantic>=2.10,<3",
+    "pydantic-settings>=2.10,<3",
     "uvicorn[standard]>=0.34,<1",
     "gunicorn>=23,<24",
 ]

@@ -14,11 +14,11 @@ class InvalidTransitionError(ValueError):
 
 
 class PhaseRunner(Protocol):
-    def run(self, campaign: CampaignState): ...
+    async def run(self, campaign: CampaignState): ...
 
 
 class PlanningRunner:
-    def run(self, campaign: CampaignState) -> PlanningOutput:
+    async def run(self, campaign: CampaignState) -> PlanningOutput:
         brief = campaign.brief
         channels = brief.preferred_channels or ["social_media", "email", "digital_ads"]
         base_share = round(brief.budget / len(channels), 2)
@@ -38,7 +38,7 @@ class PlanningRunner:
 
 
 class DevelopmentRunner:
-    def run(self, campaign: CampaignState) -> DevelopmentOutput:
+    async def run(self, campaign: CampaignState) -> DevelopmentOutput:
         if campaign.planning is None:
             raise InvalidTransitionError("Planning must be completed before development")
         assets = [ContentAsset(
@@ -55,7 +55,7 @@ class DevelopmentRunner:
 
 
 class ExecutionRunner:
-    def run(self, campaign: CampaignState) -> ExecutionOutput:
+    async def run(self, campaign: CampaignState) -> ExecutionOutput:
         if campaign.development is None:
             raise InvalidTransitionError("Development must be completed before execution")
         activities = [ScheduledActivity(
@@ -69,7 +69,7 @@ class ExecutionRunner:
 
 
 class MonitoringRunner:
-    def run(self, campaign: CampaignState) -> MonitoringOutput:
+    async def run(self, campaign: CampaignState) -> MonitoringOutput:
         if campaign.execution is None:
             raise InvalidTransitionError("Execution must be completed before monitoring")
         return MonitoringOutput(
@@ -81,14 +81,18 @@ class MonitoringRunner:
 
 
 class CampaignOrchestrator:
-    def __init__(self, repository: InMemoryCampaignRepository) -> None:
+    def __init__(
+        self,
+        repository: InMemoryCampaignRepository,
+        runners: dict[Phase, PhaseRunner] | None = None,
+    ) -> None:
         self.repository = repository
-        self.runners: dict[Phase, PhaseRunner] = {
+        self.runners: dict[Phase, PhaseRunner] = runners or {
             Phase.PLANNING: PlanningRunner(), Phase.DEVELOPMENT: DevelopmentRunner(),
             Phase.EXECUTION: ExecutionRunner(), Phase.MONITORING: MonitoringRunner(),
         }
 
-    def run_phase(self, campaign: CampaignState, phase: Phase) -> CampaignState:
+    async def run_phase(self, campaign: CampaignState, phase: Phase) -> CampaignState:
         expected = self._next_incomplete_phase(campaign)
         if expected != phase:
             raise InvalidTransitionError(f"Next runnable phase is {expected.value}, not {phase.value}")
@@ -96,7 +100,7 @@ class CampaignOrchestrator:
         phase_run.status, phase_run.started_at, phase_run.error = PhaseStatus.RUNNING, utc_now(), None
         campaign.status, campaign.current_phase = CampaignStatus.IN_PROGRESS, phase
         try:
-            setattr(campaign, phase.value, self.runners[phase].run(campaign))
+            setattr(campaign, phase.value, await self.runners[phase].run(campaign))
             phase_run.completed_at = utc_now()
             if phase == Phase.EXECUTION:
                 phase_run.status, campaign.status = PhaseStatus.AWAITING_APPROVAL, CampaignStatus.AWAITING_APPROVAL
@@ -111,9 +115,9 @@ class CampaignOrchestrator:
             self.repository.save(campaign)
             raise
 
-    def run_until_blocked(self, campaign: CampaignState) -> CampaignState:
+    async def run_until_blocked(self, campaign: CampaignState) -> CampaignState:
         while True:
-            campaign = self.run_phase(campaign, self._next_incomplete_phase(campaign))
+            campaign = await self.run_phase(campaign, self._next_incomplete_phase(campaign))
             if campaign.status in {CampaignStatus.AWAITING_APPROVAL, CampaignStatus.COMPLETED}:
                 return campaign
 

@@ -54,7 +54,7 @@ steps:
           docker build \
             -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_API_SERVICE_NAME}:${BUILD_ID} \
             -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_API_SERVICE_NAME}:latest \
-            ./development_agent
+            ./agents/development_agent
         else
           echo "Skipping Agent build"
         fi

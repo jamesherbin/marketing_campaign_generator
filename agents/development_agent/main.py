@@ -15,7 +15,7 @@ ALLOWED_ORIGINS = ["http://localhost", "http://localhost:8080", "*"]
 SERVE_WEB_INTERFACE = True
 
 # Call the function to get the FastAPI app instance
-# Ensure the agent directory name ('capital_agent') matches your agent folder
+# The ``app`` child package exposes the ADK root_agent.
 app: FastAPI = get_fast_api_app(
     agents_dir=AGENT_DIR,
     session_service_uri=SESSION_SERVICE_URI,

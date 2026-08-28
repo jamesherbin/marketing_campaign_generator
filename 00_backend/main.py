@@ -1,16 +1,19 @@
-import os
 from uuid import UUID
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, status
 
 from campaign.models import ApprovalRequest, CampaignCreate, CampaignState, Phase
+from campaign.config import get_settings
 from campaign.orchestrator import CampaignOrchestrator, InvalidTransitionError
 from campaign.repository import CampaignNotFoundError, InMemoryCampaignRepository
+from campaign.runner_factory import build_phase_runners
 
+settings = get_settings()
 app = FastAPI(title="Marketing Campaign Orchestrator API", version="0.1.0")
 repository = InMemoryCampaignRepository()
-orchestrator = CampaignOrchestrator(repository)
+runner_mode = settings.runner_mode
+orchestrator = CampaignOrchestrator(repository, runners=build_phase_runners(runner_mode))
 
 
 def load_campaign(campaign_id: UUID) -> CampaignState:
@@ -22,7 +25,7 @@ def load_campaign(campaign_id: UUID) -> CampaignState:
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "ok", "runner_mode": runner_mode.value}
 
 
 @app.post("/api/v1/campaigns", response_model=CampaignState, status_code=status.HTTP_201_CREATED)
@@ -41,17 +44,17 @@ def get_campaign(campaign_id: UUID) -> CampaignState:
 
 
 @app.post("/api/v1/campaigns/{campaign_id}/phases/{phase}/run", response_model=CampaignState)
-def run_phase(campaign_id: UUID, phase: Phase) -> CampaignState:
+async def run_phase(campaign_id: UUID, phase: Phase) -> CampaignState:
     try:
-        return orchestrator.run_phase(load_campaign(campaign_id), phase)
+        return await orchestrator.run_phase(load_campaign(campaign_id), phase)
     except InvalidTransitionError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @app.post("/api/v1/campaigns/{campaign_id}/run", response_model=CampaignState)
-def run_campaign(campaign_id: UUID) -> CampaignState:
+async def run_campaign(campaign_id: UUID) -> CampaignState:
     try:
-        return orchestrator.run_until_blocked(load_campaign(campaign_id))
+        return await orchestrator.run_until_blocked(load_campaign(campaign_id))
     except InvalidTransitionError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -66,4 +69,4 @@ def decide_execution(campaign_id: UUID, request: ApprovalRequest) -> CampaignSta
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+    uvicorn.run(app, host="0.0.0.0", port=settings.port, log_level=settings.log_level)

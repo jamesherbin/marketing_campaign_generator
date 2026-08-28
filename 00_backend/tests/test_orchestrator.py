@@ -19,14 +19,14 @@ def campaign_state() -> CampaignState:
     ))
 
 
-class CampaignOrchestratorTests(unittest.TestCase):
+class CampaignOrchestratorTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.repository = InMemoryCampaignRepository()
         self.orchestrator = CampaignOrchestrator(self.repository)
         self.campaign = self.repository.create(campaign_state())
 
-    def test_full_lifecycle_stops_for_approval_then_completes(self) -> None:
-        waiting = self.orchestrator.run_until_blocked(self.campaign)
+    async def test_full_lifecycle_stops_for_approval_then_completes(self) -> None:
+        waiting = await self.orchestrator.run_until_blocked(self.campaign)
         self.assertEqual(waiting.status, CampaignStatus.AWAITING_APPROVAL)
         self.assertEqual(waiting.phase_runs[Phase.EXECUTION].status, PhaseStatus.AWAITING_APPROVAL)
         self.assertIsNotNone(waiting.planning)
@@ -36,17 +36,17 @@ class CampaignOrchestratorTests(unittest.TestCase):
 
         approved = self.orchestrator.decide_execution(
             waiting, ApprovalDecision.APPROVED, "reviewer@example.com", "Ready")
-        complete = self.orchestrator.run_until_blocked(approved)
+        complete = await self.orchestrator.run_until_blocked(approved)
         self.assertEqual(complete.status, CampaignStatus.COMPLETED)
         self.assertIsNotNone(complete.monitoring)
         self.assertEqual(len(complete.approvals), 1)
 
-    def test_phase_order_is_enforced(self) -> None:
+    async def test_phase_order_is_enforced(self) -> None:
         with self.assertRaises(InvalidTransitionError):
-            self.orchestrator.run_phase(self.campaign, Phase.DEVELOPMENT)
+            await self.orchestrator.run_phase(self.campaign, Phase.DEVELOPMENT)
 
-    def test_rejection_fails_execution(self) -> None:
-        waiting = self.orchestrator.run_until_blocked(self.campaign)
+    async def test_rejection_fails_execution(self) -> None:
+        waiting = await self.orchestrator.run_until_blocked(self.campaign)
         rejected = self.orchestrator.decide_execution(
             waiting, ApprovalDecision.REJECTED, "reviewer@example.com", "Revise claims")
         self.assertEqual(rejected.status, CampaignStatus.FAILED)
