@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent, useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { campaignApi, CampaignBrief, CampaignState, Phase, RunnerMode } from '@/lib/campaign-api'
 
 const phases: Phase[] = ['planning', 'development', 'execution', 'monitoring']
@@ -55,13 +56,17 @@ export default function CampaignDashboard() {
   const [runnerMode, setRunnerMode] = useState<RunnerMode | 'offline'>('offline'); const [creating, setCreating] = useState(false)
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null)
   const load = useCallback(async () => { try { const [health, items] = await Promise.all([campaignApi.health(), campaignApi.list()]); setRunnerMode(health.runner_mode); setCampaigns(items); setSelected(current => items.find(item => item.campaign_id === current?.campaign_id) ?? items[0] ?? null) } catch (err) { setRunnerMode('offline'); setError(err instanceof Error ? err.message : 'API unavailable') } }, [])
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    // Loading remote data is the external synchronization performed by this effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void load()
+  }, [load])
   const replace = (campaign: CampaignState) => { setSelected(campaign); setCampaigns(items => [campaign, ...items.filter(item => item.campaign_id !== campaign.campaign_id)]) }
   async function runCampaign() { if (!selected) return; setBusy(true); setError(null); try { replace(await campaignApi.run(selected.campaign_id)) } catch (err) { setError(err instanceof Error ? err.message : 'Run failed') } finally { setBusy(false) } }
   async function decide(decision: 'approved' | 'rejected') { if (!selected) return; const actor = window.prompt('Reviewer name or email'); if (!actor) return; const comment = window.prompt(decision === 'approved' ? 'Approval note (optional)' : 'What needs revision?') ?? undefined; setBusy(true); try { const reviewed = await campaignApi.approve(selected.campaign_id, decision, actor, comment); replace(reviewed); if (decision === 'approved') replace(await campaignApi.run(reviewed.campaign_id)) } catch (err) { setError(err instanceof Error ? err.message : 'Review failed') } finally { setBusy(false) } }
   const awaiting = campaigns.filter(item => item.status === 'awaiting_approval').length
   return <main className="dashboard-shell">
-    <header className="topbar"><a className="brand" href="/"><span className="brand-mark">MC</span><span>Campaign Studio</span></a><div className={`api-badge ${runnerMode}`}><span /> {runnerMode === 'offline' ? 'API offline' : `${runnerMode} runner`}</div></header>
+    <header className="topbar"><Link className="brand" href="/"><span className="brand-mark">MC</span><span>Campaign Studio</span></Link><div className={`api-badge ${runnerMode}`}><span /> {runnerMode === 'offline' ? 'API offline' : `${runnerMode} runner`}</div></header>
     <section className="hero-row"><div><p className="eyebrow">AI campaign operations</p><h1>From brief to measurable campaign.</h1><p className="lede">One workspace for strategy, creative development, controlled execution, and performance insight.</p></div><button className="primary-button" onClick={() => setCreating(true)}>New campaign</button></section>
     <section className="metric-grid"><article><span>Total campaigns</span><strong>{campaigns.length}</strong><small>Across the complete lifecycle</small></article><article><span>Awaiting approval</span><strong>{awaiting}</strong><small>Human review stays in control</small></article><article><span>Runner mode</span><strong className="text-value">{runnerMode}</strong><small>{runnerMode === 'adk' ? 'Gemini agent team enabled' : 'Predictable local workflow'}</small></article></section>
     {error && <div className="error-banner"><span>{error}</span><button onClick={() => { setError(null); void load() }}>Retry</button></div>}

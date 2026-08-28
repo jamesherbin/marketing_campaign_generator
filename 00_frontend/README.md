@@ -6,9 +6,9 @@ planning, development, execution approval, and monitoring lifecycle.
 ## Local development
 
 ```bash
-npm install
+bun install
 cp .env.example .env.local
-npm run dev
+bun run dev
 ```
 
 The backend defaults to `http://localhost:8080`. The browser calls same-origin

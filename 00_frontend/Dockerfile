@@ -4,20 +4,20 @@
 # =============================================================================
 # Stage 1: Dependencies
 # =============================================================================
-FROM node:20-alpine AS deps
+FROM oven/bun:1.3.14-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Copy package files
-COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* ./
+# Copy Bun package files
+COPY package.json bun.lock ./
 
 # Install ALL dependencies (including devDependencies like typescript, tailwind)
-RUN npm install --include=dev
+RUN bun install --frozen-lockfile
 
 # =============================================================================
 # Stage 2: Builder
 # =============================================================================
-FROM node:20-alpine AS builder
+FROM oven/bun:1.3.14-alpine AS builder
 WORKDIR /app
 
 # Copy dependencies from deps stage
@@ -32,7 +32,7 @@ ENV NEXT_PUBLIC_FRONTEND_URL=${NEXT_PUBLIC_FRONTEND_URL}
 
 # Build the application
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+RUN bun run build
 
 # =============================================================================
 # Stage 3: Runner (Production)

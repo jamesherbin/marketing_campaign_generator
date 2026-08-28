@@ -19,7 +19,7 @@ flowchart LR
 
 | Directory | Purpose |
 | --- | --- |
-| `00_frontend/` | Next.js 14 campaign dashboard and backend proxy routes |
+| `00_frontend/` | Next.js 16 campaign dashboard and backend proxy routes |
 | `00_backend/` | FastAPI API, `CampaignState` models, orchestration, runners, and tests |
 | `agents/` | Importable Google ADK agents for each campaign phase |
 
@@ -38,7 +38,7 @@ The dashboard displays campaign status, phase progress, strategy, creative asset
 ## Prerequisites
 
 - Python 3.11 or newer
-- Node.js 20 or newer and npm
+- Node.js 20 or newer and Bun 1.3 or newer
 - A Gemini API key or Google Cloud credentials only when using ADK mode
 
 ## Run locally
@@ -68,9 +68,9 @@ In another terminal:
 
 ```bash
 cd 00_frontend
-npm install
+bun install
 cp .env.example .env.local
-npm run dev
+bun run dev
 ```
 
 Open `http://localhost:3000`. The browser talks to same-origin Next.js route handlers, which proxy campaign requests to the backend.
@@ -145,7 +145,7 @@ Build the frontend:
 
 ```bash
 cd 00_frontend
-npm run build
+bun run build
 ```
 
 ## Current limitations
