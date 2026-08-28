@@ -1,7 +1,12 @@
 [project]
 name = "00-backend"
 version = "0.1.0"
-description = "Add your description here"
+description = "Marketing campaign state and orchestration API"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "fastapi>=0.115,<1",
+    "pydantic>=2.10,<3",
+    "uvicorn[standard]>=0.34,<1",
+    "gunicorn>=23,<24",
+]
