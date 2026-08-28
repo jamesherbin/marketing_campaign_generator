@@ -9,22 +9,14 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { AnimatedTitle } from '@/components/ui/Title'
 import { CelestialBackground } from '@/components/ui/CelestialBackground'
-import { createApi } from '@reduxjs/toolkit/query/react'
-import type { Messages } from './types'
-
-export const agentApi = createApi({
-	reducerPath: 'agentApi',
-	baseQuery: fetchBaseQuery({ baseUrl: 'http://localhost:4999/api/test'}),
-	endpoints: (build) => ({
-  	  getPokemonByName: build.query<Messages, string>({
-    	    query: (name) => `agent/${name}`,
-    }),
-  }),
-)}
+import { checkApiHealth, type ApiHealth } from '@/lib/campaign-api'
 
 export default function HomePage() {
   const [eventCode, setEventCode] = useState('')
   const [isNavigating, setIsNavigating] = useState(false)
+  const [health, setHealth] = useState<ApiHealth | null>(null)
+  const [healthError, setHealthError] = useState<string | null>(null)
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false)
 
   const handleJoinEvent = (e: React.FormEvent) => {
     e.preventDefault()
@@ -34,10 +26,17 @@ export default function HomePage() {
     }
   }
 
-  const serverTest = async () => {
-    const response = await fetch('/api/test')
-    const data = await response.json()
-    console.log(data)
+  const handleHealthCheck = async () => {
+    setIsCheckingHealth(true)
+    setHealth(null)
+    setHealthError(null)
+    try {
+      setHealth(await checkApiHealth())
+    } catch (error) {
+      setHealthError(error instanceof Error ? error.message : 'Unable to reach the API')
+    } finally {
+      setIsCheckingHealth(false)
+    }
   }
 
   return (
@@ -217,7 +216,27 @@ export default function HomePage() {
             >
               L5
             </a>
-          <button onClick={serverTest}>Test Server</button>
+          </div>
+
+          <div className="flex flex-col items-center gap-2">
+            <button
+              type="button"
+              onClick={handleHealthCheck}
+              disabled={isCheckingHealth}
+              className="px-3 py-1.5 rounded-full text-xs bg-space-void-lighter/50 text-space-lavender/70 hover:text-space-cream disabled:opacity-50 transition-colors"
+            >
+              {isCheckingHealth ? 'Checking API…' : 'Check API connection'}
+            </button>
+            {health && (
+              <p className="text-xs text-space-mint" role="status">
+                API connected · {health.runner_mode}
+              </p>
+            )}
+            {healthError && (
+              <p className="text-xs text-red-300 text-center" role="alert">
+                {healthError}
+              </p>
+            )}
           </div>
 
           <p className="text-xs text-space-lavender/40">

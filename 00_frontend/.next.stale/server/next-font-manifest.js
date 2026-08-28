@@ -1,0 +1,1 @@
+self.__NEXT_FONT_MANIFEST="{\"pages\":{},\"app\":{\"/Users/james/projects/marketing_campaign_generator/00_frontend/app/layout\":[\"static/media/13971731025ec697-s.p.woff2\",\"static/media/bb3ef058b751a6ad-s.p.woff2\",\"static/media/7b0b24f36b1a6d0b-s.p.woff2\"]},\"appUsingSizeAdjust\":true,\"pagesUsingSizeAdjust\":false}"
