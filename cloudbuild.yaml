@@ -68,9 +68,10 @@ steps:
       - |
         if [ "${_BUILD_BACKEND}" = "true" ]; then
           docker build \
+            -f ./00_backend/Dockerfile \
             -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_API_SERVICE_NAME}:${BUILD_ID} \
             -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_API_SERVICE_NAME}:latest \
-            ./00_backend
+            .
         else
           echo "Skipping backend build"
         fi

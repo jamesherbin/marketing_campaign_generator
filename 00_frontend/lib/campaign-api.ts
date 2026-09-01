@@ -45,5 +45,5 @@ export const campaignApi = {
   list: () => request<CampaignState[]>('/api/campaigns'),
   create: (brief: CampaignBrief) => request<CampaignState>('/api/campaigns', { method: 'POST', body: JSON.stringify({ brief }) }),
   run: (id: string) => request<CampaignState>(`/api/campaigns/${id}/run`, { method: 'POST' }),
-  approve: (id: string, decision: 'approved' | 'rejected', actor: string, comment?: string) => request<CampaignState>(`/api/campaigns/${id}/execution/approval`, { method: 'POST', body: JSON.stringify({ decision, actor, comment: comment || null }) }),
+  approve: (id: string, decision: 'approved' | 'rejected', comment?: string) => request<CampaignState>(`/api/campaigns/${id}/execution/approval`, { method: 'POST', body: JSON.stringify({ decision, comment: comment || null }) }),
 }

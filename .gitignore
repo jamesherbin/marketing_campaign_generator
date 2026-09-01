@@ -203,6 +203,19 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
+# Terraform local state and generated plans
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.tfstate.lock.info
+
 # Marimo
 marimo/_static/
 marimo/_lsp/

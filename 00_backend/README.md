@@ -67,6 +67,52 @@ uvicorn main:app --port 8080
 
 `GET /health` reports the active runner mode.
 
+## Container and Cloud Run
+
+Build and run the production container locally:
+
+```bash
+docker build -f 00_backend/Dockerfile -t campaign-api:dev .
+docker run --rm -p 8080:8080 \
+  -e GOOGLE_CLOUD_PROJECT=marketing-generator-51cc0 \
+  campaign-api:dev
+```
+
+Run the build command from the repository root. The root build context includes
+the `agents` package required by `CAMPAIGN_RUNNER_MODE=adk`; `.dockerignore`
+excludes frontend dependencies, local credentials, tests, caches, and build output.
+
+The image runs as an unprivileged user, listens on Cloud Run's `PORT`, and does
+not contain credentials. For authenticated campaign requests, use Application
+Default Credentials locally or attach a dedicated service account to Cloud Run.
+Do not bake a Firebase service-account key or Gemini API key into the image.
+
+Build and deploy with Google Cloud Build and Cloud Run:
+
+```bash
+gcloud builds submit \
+  --config 00_backend/cloudbuild.yaml \
+  --project marketing-generator-51cc0 \
+  .
+
+gcloud run deploy campaign-api \
+  --image us-east4-docker.pkg.dev/marketing-generator-51cc0/marketing-campaign-generator/campaign-api:BUILD_ID \
+  --region us-east4 \
+  --service-account campaign-api@marketing-generator-51cc0.iam.gserviceaccount.com \
+  --set-env-vars GOOGLE_CLOUD_PROJECT=marketing-generator-51cc0,CAMPAIGN_RUNNER_MODE=deterministic \
+  --allow-unauthenticated
+```
+
+`--allow-unauthenticated` permits the Firebase App Hosting server to reach Cloud
+Run; FastAPI still requires and verifies a Firebase session on all campaign
+routes. For stronger network-level isolation, make Cloud Run private after the
+frontend proxy is extended to attach a Google-signed Cloud Run identity token.
+
+The current repository is in-memory. Keep the container at one process for local
+testing only; Cloud Run instances do not share memory and lose campaign state on
+restart. Connect the PostgreSQL repository before using multiple instances or
+serving production campaign data.
+
 ## Environment configuration
 
 Configuration is loaded and validated by `campaign.config.Settings`. Values come

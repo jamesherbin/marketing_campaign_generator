@@ -154,5 +154,4 @@ class CampaignCreate(BaseModel):
 
 class ApprovalRequest(BaseModel):
     decision: ApprovalDecision
-    actor: str = Field(min_length=1)
     comment: str | None = None
