@@ -120,3 +120,22 @@ from process environment variables, with an optional local `.env` file. Copy
 `.env.example` to `.env` for local development; never commit real credentials.
 API keys are represented as Pydantic secret values so they are redacted from
 settings logs and representations.
+
+## Database implementation and tests
+
+The database connection foundation is available through `DatabaseSettings` and
+`campaign.database.database_pool`. Database settings are validated when that
+lifecycle starts, with no connections made at import time. Local mode requires
+`DATABASE_URL`; Cloud SQL mode requires `DATABASE_INSTANCE`, `DATABASE_NAME`, and
+`DATABASE_USER`, and uses private IP with IAM authentication. See `.env.example`.
+
+The PostgreSQL adapter is implemented in `campaign.postgres_repository` with a
+workspace-bound asynchronous interface, transactional snapshots, and version checks.
+The API still uses the in-memory repository until role enforcement and orchestration
+are integrated. At that cutover the database lifespan and schema-readiness guard
+will be wired into startup. Workspace authorization remains in progress.
+
+Use `uv sync --locked` to install runtime and test dependencies. Run unit tests
+with `.venv/bin/python -m pytest -m 'not integration'`. See
+[database test instructions](../database/README.md#disposable-postgresql-tests)
+for the complete suite against an isolated PostgreSQL 16 service.

@@ -133,13 +133,22 @@ Do not commit real credentials. Browser code does not need an API key.
 
 ## Tests and builds
 
+Changes follow the [spec-driven development workflow](specs/README.md): define
+requirements and acceptance scenarios, plan the implementation, then record
+validation evidence alongside the code. Start with the
+[current lifecycle baseline](specs/000-campaign-lifecycle/spec.md). Reusable
+templates and a proposed workspace authorization spec are in `specs/`.
+
 Run backend tests:
 
 ```bash
 cd 00_backend
 source .venv/bin/activate
-pytest
+pytest -m 'not integration'
 ```
+
+For the full suite, including PostgreSQL migration tests, follow the
+[disposable database test instructions](database/README.md#disposable-postgresql-tests).
 
 Build the frontend:
 

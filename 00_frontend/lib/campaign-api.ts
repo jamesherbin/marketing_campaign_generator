@@ -1,3 +1,5 @@
+export type WorkspaceRole = 'viewer' | 'editor' | 'runner' | 'approver'
+export interface Workspace { workspace_id: string; name: string; slug: string; role: WorkspaceRole }
 export type RunnerMode = 'deterministic' | 'adk'
 export type CampaignStatus = 'draft' | 'in_progress' | 'awaiting_approval' | 'completed' | 'failed'
 export type Phase = 'planning' | 'development' | 'execution' | 'monitoring'
@@ -20,10 +22,11 @@ export interface ScheduledActivity { channel: string; action: string; scheduled_
 export interface ExecutionOutput { activities: ScheduledActivity[]; publication_summary: string }
 export interface MonitoringOutput { kpis: Record<string, number | string | null>; analysis: string[]; recommendations: string[]; stakeholder_summary: string }
 export interface CampaignState {
+  workspace_id: string; created_by_user_id: string
   campaign_id: string; version: number; status: CampaignStatus; current_phase: Phase; brief: CampaignBrief
   planning?: PlanningOutput; development?: DevelopmentOutput; execution?: ExecutionOutput; monitoring?: MonitoringOutput
   phase_runs: Record<Phase, { status: PhaseStatus; started_at?: string; completed_at?: string; error?: string }>
-  approvals: Array<{ phase: Phase; decision: 'approved' | 'rejected'; actor: string; comment?: string; decided_at: string }>
+  approvals: Array<{ phase: Phase; decision: 'approved' | 'rejected'; actor: string; actor_firebase_uid: string | null; identity_source: 'firebase_verified' | 'legacy_unverified'; comment?: string; decided_at: string }>
   created_at: string; updated_at: string
 }
 
@@ -40,10 +43,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
+const workspaceHeaders = (workspace: string) => ({ 'X-Workspace-ID': workspace })
 export const campaignApi = {
   health: () => request<ApiHealth>('/api/health'),
-  list: () => request<CampaignState[]>('/api/campaigns'),
-  create: (brief: CampaignBrief) => request<CampaignState>('/api/campaigns', { method: 'POST', body: JSON.stringify({ brief }) }),
-  run: (id: string) => request<CampaignState>(`/api/campaigns/${id}/run`, { method: 'POST' }),
-  approve: (id: string, decision: 'approved' | 'rejected', comment?: string) => request<CampaignState>(`/api/campaigns/${id}/execution/approval`, { method: 'POST', body: JSON.stringify({ decision, comment: comment || null }) }),
+  workspaces: (signal?: AbortSignal) => request<Workspace[]>('/api/workspaces', { signal }),
+  list: (workspace: string, signal?: AbortSignal) => request<CampaignState[]>('/api/campaigns', { headers: workspaceHeaders(workspace), signal }),
+  create: (workspace: string, brief: CampaignBrief) => request<CampaignState>('/api/campaigns', { method: 'POST', headers: workspaceHeaders(workspace), body: JSON.stringify({ brief }) }),
+  run: (workspace: string, id: string) => request<CampaignState>(`/api/campaigns/${id}/run`, { method: 'POST', headers: workspaceHeaders(workspace) }),
+  approve: (workspace: string, id: string, decision: 'approved' | 'rejected', comment?: string) => request<CampaignState>(`/api/campaigns/${id}/execution/approval`, { method: 'POST', headers: workspaceHeaders(workspace), body: JSON.stringify({ decision, comment: comment || null }) }),
 }

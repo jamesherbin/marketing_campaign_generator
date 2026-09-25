@@ -48,6 +48,8 @@ def require_user(authorization: str | None = Header(default=None)) -> Authentica
             check_revoked=True,
             app=initialize_firebase(),
         )
+        if not isinstance(claims.get("uid"), str) or not claims["uid"].strip():
+            raise ValueError("Session has no valid identity")
     except (auth.InvalidSessionCookieError, auth.RevokedSessionCookieError, auth.UserDisabledError):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired session") from None
     except Exception:

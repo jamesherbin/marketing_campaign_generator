@@ -1,11 +1,41 @@
 from threading import RLock
+from dataclasses import dataclass
+from typing import Literal, Protocol
 from uuid import UUID
 
-from .models import CampaignState
+from .models import ApprovalRecord, CampaignState
 
 
 class CampaignNotFoundError(KeyError):
     pass
+
+
+class CampaignConflictError(ValueError):
+    pass
+
+
+@dataclass(frozen=True)
+class StoredApproval:
+    record: ApprovalRecord
+    actor_firebase_uid: str | None
+    identity_source: Literal["firebase_verified", "legacy_unverified"]
+
+
+@dataclass(frozen=True)
+class StoredCampaign:
+    state: CampaignState
+    workspace_id: UUID
+    created_by_user_id: UUID
+    approval_history: tuple[StoredApproval, ...] = ()
+
+
+class CampaignRepository(Protocol):
+    """Async, workspace-scoped storage contract; callers enforce membership/roles."""
+
+    async def create(self, campaign: CampaignState, created_by_user_id: UUID) -> StoredCampaign: ...
+    async def get(self, campaign_id: UUID) -> StoredCampaign: ...
+    async def list(self) -> list[StoredCampaign]: ...
+    async def save(self, campaign: CampaignState) -> StoredCampaign: ...
 
 
 class InMemoryCampaignRepository:

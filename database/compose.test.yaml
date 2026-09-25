@@ -1,0 +1,17 @@
+name: campaign-database-tests
+services:
+  postgres:
+    image: postgres:16@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
+    environment:
+      POSTGRES_USER: campaign_test
+      POSTGRES_PASSWORD: campaign_test_local_only
+      POSTGRES_DB: campaign_test
+    ports:
+      - "127.0.0.1:55432:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U campaign_test -d campaign_test"]
+      interval: 1s
+      timeout: 3s
+      retries: 30

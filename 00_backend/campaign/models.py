@@ -148,10 +148,12 @@ class CampaignState(BaseModel):
 
 
 class CampaignCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     brief: CampaignBrief
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ApprovalRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     decision: ApprovalDecision
     comment: str | None = None
