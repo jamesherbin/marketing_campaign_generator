@@ -55,6 +55,15 @@ class DatabaseSettings(BaseSettings):
         return self
 
 
+class OperatorDatabaseSettings(DatabaseSettings):
+    """Separate explicit credentials; never inherit the API connection settings."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="OPERATOR_DATABASE_", env_file=None, extra="ignore",
+        hide_input_in_errors=True,
+    )
+
+
 class Settings(BaseSettings):
     """Typed backend configuration sourced from environment variables or `.env`."""
 

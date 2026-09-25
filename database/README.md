@@ -9,7 +9,7 @@ Cloud SQL instance and versioned SQL migrations for the campaign application.
 - `workspaces`: tenant boundary for campaign data.
 - `workspace_members`: workspace membership with cumulative `viewer`, `editor`,
   `runner`, and `approver` roles after migration 002. Workspace administration is
-  handled by the planned operator command, not an owner/admin membership role.
+  handled by the operator command, not an owner/admin membership role.
 - `campaigns`: durable campaign state with ownership and optimistic versioning.
 - `campaign_briefs`: the `CampaignBrief` fields.
 - `planning_outputs`: the optional `PlanningOutput` phase result.
@@ -61,19 +61,23 @@ before team or production use. Do not commit local state or plan files.
 Terraform creates the instance and empty database but intentionally does not run
 SQL. Apply migrations as a separate deployment step from a trusted runner that can
 reach the private VPC, using a dedicated migration identity rather than the runtime
-application identity:
+application identity. Run the commands below from `database/`; supply
+`MIGRATION_DATABASE_URL` through a protected environment using that migration
+identity, not the API runtime login:
 
 ```sh
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 \
   -f migrations/001_core_schema.sql
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 \
   -f migrations/002_workspace_roles.sql
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 \
   -f migrations/003_durable_campaigns.sql
+psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 \
+  -f migrations/004_authorization_locks.sql
 ```
 
 Apply numbered migrations in order, once per database. On an existing database
-with 001 already applied, run 002 and 003. The original migration is preserved so
+with 001 already applied, run 002 through 004. The original migration is preserved so
 existing installations have the same upgrade path as fresh databases.
 
 Migration 002 adds `runner` and removes `owner`/`admin`. It runs transactionally
@@ -99,7 +103,7 @@ Apply the role grants separately with the migration/schema-owner identity, using
 existing, distinct runtime and operator roles:
 
 ```sh
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 \
   -v runtime_role=campaign_runtime -v operator_role=campaign_operator -f grants.sql
 ```
 
@@ -117,25 +121,33 @@ Do not place a database password in Terraform variables or source control. Prefe
 Cloud SQL IAM database authentication and a short-lived connector token. Record
 every applied migration in deployment automation before adding later migrations.
 
-## Backend integration still required
+## Operator commands and migration
+
+See [OPERATIONS.md](OPERATIONS.md) for workspace/member provisioning, legacy
+exports, read-only import previews, atomic imports, verification, and recovery.
+Commands require explicit `OPERATOR_DATABASE_*` settings and use existing Firebase
+UIDs. They do not provision cloud infrastructure or create Firebase accounts.
+
+## Backend integration
 
 The database connection foundation is implemented in
 `00_backend/campaign/database.py`: a bounded asyncpg pool, local URL and private
 Cloud SQL/IAM modes, startup probing, and bounded shutdown. Its FastAPI lifespan
-factory is tested but is not yet attached to the active API. The active campaign
-repository remains in memory until the authorization and orchestration cutover.
+factory and the active API lifespan are tested. The API now requires PostgreSQL,
+schema versions 001–004, and runtime authorization grants; it has no memory fallback.
 
 `00_backend/campaign/postgres_repository.py` now implements the asynchronous
 workspace-scoped storage contract. It reads normalized state in a consistent
 transaction, writes complete snapshots atomically, and rejects stale versions.
 Generic saves preserve approval history and reject attempts to edit or append it.
 Verified and legacy histories retain separate identity provenance in the stored
-envelope. `require_campaign_schema` checks migrations 001–003 before API cutover.
+envelope. `require_campaign_schema` checks migrations 001–004 at startup.
 
-The next backend work is to resolve memberships by verified UID, enforce roles,
-serialize phase runs, commit approvals with state transitions atomically, and wire
-the adapter into API startup. Operator commands will provision users; login will
-not automatically grant membership. Database scoping is not itself authorization.
+The API resolves memberships by verified UID, enforces cumulative roles, serializes
+phase runs, and commits approvals with state transitions atomically. Migration 004
+provides a restricted function for locking membership rows without granting runtime
+membership-write privileges. Operator commands provision users and memberships;
+login does not automatically grant access.
 
 The application should never trust a workspace ID, actor ID, email, or role sent
 by the browser without resolving it from the authenticated server-side identity.
@@ -177,9 +189,12 @@ server user therefore needs CREATEDB and CREATEROLE (the disposable service supp
 a test superuser). Grant tests use isolated non-superuser runtime/operator roles,
 then remove their grants and roles. The tests apply migrations themselves and
 never use the application's DATABASE_URL. They currently cover pool persistence,
-the four supported roles, migrations 001–003, UID/history immutability, role grants,
+the four supported roles, migrations 001–004, UID/history immutability, role grants,
 full campaign round trips, collection ordering, workspace scoping, concurrent
-version conflicts, consistent reads, and rollback of partially written state.
+version conflicts, consistent reads, and rollback of partially written state. API
+tests also cover session/role enforcement, approval atomicity, interrupted runs,
+and revoked access. Operator tests rehearse export/import, restart verification,
+transaction rollback, and exact retry. See [validation evidence](../specs/001-workspace-authorization/validation.md).
 
 Stop the disposable test service from the repository root when finished:
 

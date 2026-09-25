@@ -1,12 +1,16 @@
 # 000: Campaign lifecycle
 
-Status: Baseline
+Status: Historical baseline (2026-09-24)
 
 ## Scope and sources
 
 Observed behavior in `00_backend/campaign/orchestrator.py`, `repository.py`,
-`auth.py`, and `00_backend/main.py`. This describes the current implementation,
+`auth.py`, and `00_backend/main.py`. This describes the implementation observed on 2026-09-24,
 including limitations, rather than a production readiness target.
+
+Storage, workspace authorization, concurrency, and approval attribution are
+superseded by [001: Workspace authorization](../001-workspace-authorization/spec.md).
+The limitations and evidence below are historical, not current API behavior.
 
 ## Requirements and acceptance scenarios
 

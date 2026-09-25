@@ -58,20 +58,38 @@ export default function WorkspaceDashboard() {
   const [active, setActive] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [refresh, setRefresh] = useState(0)
+  const [leaving, setLeaving] = useState(false)
+  const discovery = useRef<AbortController | null>(null)
+  async function logout() {
+    discovery.current?.abort()
+    setLeaving(true); setActive(''); setWorkspaces(null); setError(null)
+    try {
+      const response = await fetch('/api/auth/logout', { method: 'POST' })
+      if (!response.ok) throw new Error('Unable to sign out. Please retry.')
+      router.replace('/login'); router.refresh()
+    } catch { setError('Unable to sign out. Please retry.') }
+  }
+  const sessionExpired = useCallback(() => {
+    discovery.current?.abort()
+    setLeaving(true); setActive(''); setWorkspaces(null); setError(null)
+    router.replace('/login')
+  }, [router])
   const refreshAccess = useCallback(() => { setActive(''); setWorkspaces(null); setRefresh(n => n + 1) }, [])
   useEffect(() => {
+    if (leaving) return
     const controller = new AbortController()
+    discovery.current = controller
     campaignApi.workspaces(controller.signal).then(items => {
       if (controller.signal.aborted) return
       setWorkspaces(items); setError(null)
       setActive(items.length === 1 ? items[0].workspace_id : '')
     }).catch(err => {
       if (controller.signal.aborted) return
-      if (err instanceof CampaignApiError && err.status === 401) router.replace('/login')
+      if (err instanceof CampaignApiError && err.status === 401) { sessionExpired(); return }
       setError(err instanceof Error ? err.message : 'Unable to load workspaces')
     })
     return () => controller.abort()
-  }, [refresh, router])
+  }, [refresh, leaving, sessionExpired])
   const workspace = workspaces?.find(item => item.workspace_id === active)
   return <>
     <div className="workspace-switcher">
@@ -81,18 +99,17 @@ export default function WorkspaceDashboard() {
         {workspaces?.map(item => <option key={item.workspace_id} value={item.workspace_id}>{item.name} · {item.role}</option>)}
       </select>
     </div>
-    {workspace ? <CampaignDashboard key={workspace.workspace_id} workspace={workspace} onAccessChanged={refreshAccess} /> :
+    {workspace ? <CampaignDashboard key={workspace.workspace_id} workspace={workspace} onAccessChanged={refreshAccess} onLogout={logout} onSessionExpired={sessionExpired} /> :
       <main className="dashboard-shell"><section className="empty-state">
         <h1>{error ? 'Unable to load workspaces' : workspaces === null ? 'Loading…' : workspaces.length ? 'Choose a workspace' : 'Workspace access needed'}</h1>
         <p>{error ?? (workspaces?.length === 0 ? 'Ask an operator to add you to a workspace.' : 'Select your workspace to view its campaigns.')}</p>
-        {error && <button className="primary-button" onClick={refreshAccess}>Retry</button>}
-        <button className="ghost-button" onClick={async () => { await fetch('/api/auth/logout', { method: 'POST' }); setActive(''); setWorkspaces(null); router.replace('/login'); router.refresh() }}>Sign out</button>
+        {error && !leaving && <button className="primary-button" onClick={refreshAccess}>Retry</button>}
+        <button className="ghost-button" onClick={() => void logout()}>Sign out</button>
       </section></main>}
   </>
 }
 
-function CampaignDashboard({ workspace, onAccessChanged }: { workspace: Workspace; onAccessChanged: () => void }) {
-  const router = useRouter()
+function CampaignDashboard({ workspace, onAccessChanged, onLogout, onSessionExpired }: { workspace: Workspace; onAccessChanged: () => void; onLogout: () => Promise<void>; onSessionExpired: () => void }) {
   const [campaigns, setCampaigns] = useState<CampaignState[]>([]); const [selected, setSelected] = useState<CampaignState | null>(null)
   const [runnerMode, setRunnerMode] = useState<RunnerMode | 'offline'>('offline'); const [creating, setCreating] = useState(false)
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null)
@@ -102,10 +119,10 @@ function CampaignDashboard({ workspace, onAccessChanged }: { workspace: Workspac
   const canApprove = workspace.role === 'approver'
   const failure = useCallback((err: unknown) => {
     if (!alive.current) return
-    if (err instanceof CampaignApiError && err.status === 401) { router.replace('/login'); onAccessChanged(); return }
+    if (err instanceof CampaignApiError && err.status === 401) { alive.current = false; onSessionExpired(); return }
     if (err instanceof CampaignApiError && [403, 404].includes(err.status)) { onAccessChanged(); return }
     setError(err instanceof Error ? err.message : 'Request failed')
-  }, [router, onAccessChanged])
+  }, [onSessionExpired, onAccessChanged])
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
       const [health, items] = await Promise.all([campaignApi.health(), campaignApi.list(workspace.workspace_id, signal)])
@@ -143,7 +160,7 @@ function CampaignDashboard({ workspace, onAccessChanged }: { workspace: Workspac
       if (decision === 'approved') replace(await campaignApi.run(workspace.workspace_id, reviewed.campaign_id))
     } catch (err) { failure(err) } finally { if (alive.current) setBusy(false) }
   }
-  async function logout() { alive.current = false; await fetch('/api/auth/logout', { method: 'POST' }); onAccessChanged(); router.replace('/login'); router.refresh() }
+  async function logout() { alive.current = false; await onLogout() }
   const awaiting = campaigns.filter(item => item.status === 'awaiting_approval').length
   return <main className="dashboard-shell">
     <header className="topbar"><Link className="brand" href="/"><span className="brand-mark">MC</span><span>Campaign Studio</span></Link><div className={`api-badge ${runnerMode}`}><span /> {runnerMode === 'offline' ? 'API offline' : `${runnerMode} runner`}</div><button className="ghost-button" onClick={() => void logout()}>Sign out</button></header>

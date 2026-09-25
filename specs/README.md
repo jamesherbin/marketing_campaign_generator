@@ -13,7 +13,7 @@ This workflow needs no additional framework or service.
 - Authentication does not imply campaign ownership or permission to approve.
 - Deterministic runners make development reproducible; ADK integrations require
   separate contract and failure validation.
-- Record known gaps honestly, including in-memory storage and incomplete coverage.
+- Record known gaps honestly, including historical storage limitations and incomplete coverage.
 
 ## Workflow
 
@@ -45,11 +45,12 @@ Git records history. Link superseding specs when a requirement is retired.
 | Spec | Status | Purpose |
 | --- | --- | --- |
 | [000: Campaign lifecycle](000-campaign-lifecycle/spec.md) | Baseline | Existing behavior and test coverage |
-| [001: Workspace authorization](001-workspace-authorization/spec.md) | In progress | Schema and durable repository tested; API authorization and cutover pending |
+| [001: Workspace authorization](001-workspace-authorization/spec.md) | Implemented | Workspace isolation, roles, durable storage, and operator migration validated; deployment separate |
 
 `todo.md` remains the broader backlog. Its authentication items predate parts of
 the Firebase implementation; verify each item against code before scheduling it.
-The SQL schema exists but is not connected to the running repository.
+The active API uses PostgreSQL with migrations 001–004 and runtime grants; see
+[database setup](../database/README.md).
 
 ## Validation
 

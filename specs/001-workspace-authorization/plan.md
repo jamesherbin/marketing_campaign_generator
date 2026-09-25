@@ -2,15 +2,14 @@
 
 Spec: [spec.md](spec.md) · Tasks: [tasks.md](tasks.md)
 
-Status: In progress. Migrations 002/003, role grants, the database connection
-foundation, and the durable repository are implemented and tested locally. API,
-authorization, orchestration, and operator-command integration remain pending.
-No deployment is included.
+Status: Implemented. All planned work and final review completed on 2026-09-25.
+See [tasks.md](tasks.md) and [validation.md](validation.md) for evidence and rollout
+boundaries. The architecture below records the implemented design.
 
 Implementation sequencing: T03 is split into connection foundation (T03a) and
 application cutover (T03b, alongside T08). The schema-readiness guard is already
-tested. Cutover awaits T06–T08 so durable campaigns are introduced with membership
-and role enforcement rather than an unauthenticated workspace choice.
+tested. T06–T08 and the coordinated API cutover are complete: durable campaigns
+are protected by membership and role enforcement.
 
 ## Architecture and dependencies
 
@@ -136,6 +135,33 @@ request or phase commit. Runtime code never auto-provisions membership on login.
 
 ## Operator commands and migration (001-R6, 001-R7)
 
+Implementation details for T10/T11: commands use an explicitly configured
+`OPERATOR_DATABASE_*` connection (never the API's `DATABASE_*` credentials).
+Firebase account lookup is read-only: operators create the new account separately.
+Provisioning rejects disabled Firebase/application users and never re-enables them
+implicitly. Membership suspension is an idempotent database operation and does not
+require a still-existing Firebase account. Existing workspace-create retries must
+match name, slug, and creator; no command grants an implicit membership.
+
+Legacy exports require an explicit write-quiescence acknowledgement and a source
+instance label for each directly addressed old API process. The tool reads each
+source twice, rejects changing snapshots, rejects redirects and scoped/new-API
+payloads, and merges only identical duplicate campaign IDs. This detects changes
+but cannot prove a load balancer reached every old process; the operator must
+inventory/pin each process before cutover. Files are created privately without
+overwriting an existing export. Version 1 files require complete state records,
+timezone-aware timestamps, all phase runs, finite JSON, and consistent lifecycle
+states. Missing fields or unknown fields fail rather than being filled/discarded.
+
+Import dry-run performs complete input/Firebase/database collision and permission
+checks in a read-only transaction, with no user/workspace/campaign/ledger writes.
+The actual import repeats these checks under an import-ID transaction advisory
+lock, writes the batch atomically, and verifies canonical state before committing.
+An exact ledger retry returns the original workspace without updating identities
+or campaign state. A separate verification command compares an export with its
+imported snapshot; it is intended before reopening writes and reports drift if
+campaigns have since advanced.
+
 Implement `python -m campaign.manage` with subcommands:
 
 | Command | Required inputs | Behavior |
@@ -182,8 +208,10 @@ Update campaign-api.ts, backend-proxy.ts, same-origin routes, dashboard, and rel
 types. Forward the workspace header explicitly; never forward browser-supplied
 identity/role headers. Fetch accessible workspaces after login. Auto-select a sole
 workspace; for multiple workspaces require selection or restore a selection still
-present in the returned list. Scope saved selection to the verified user and clear
-it at logout. With none, show an access-needed state and no campaign actions.
+present in the returned list. Keep selection in component memory only; do not persist it across users or
+page reloads. Clear it immediately at logout, and abort pending discovery. Session expiry performs the same access cleanup
+without starting another discovery request. Sessionless API calls return JSON 401;
+page navigation redirects to login. With none, show an access-needed state and no campaign actions.
 
 On switching workspaces, clear campaign details and drafts, cancel old requests,
 and discard late responses from the previous workspace. Apply the same rule to
@@ -210,6 +238,25 @@ tests. Record exact commands/results in the spec when executed; these are planne
 checks, not current evidence. Local pytest and a digest-pinned disposable PostgreSQL 16 service are now
 available; see `database/README.md` for the commands.
 
+### T13 browser smoke validation
+
+Run the production Next.js build in an isolated Playwright Chromium context on
+loopback port 3100, with desktop and narrow mobile viewports. Intercept only the
+browser API boundary with deterministic workspace/campaign responses; use a
+synthetic cookie in the isolated test context to reach the dashboard. No runtime
+authentication bypass or test route is added to the application. These checks
+validate rendering, navigation, HTTP request shape, switching, role controls,
+approval gating, membership denial, and logout. They do not claim live Firebase
+verification or a browser-to-PostgreSQL end-to-end deployment check. The separate
+proxy tests and real PostgreSQL API suite validate those server boundaries.
+
+Smoke scenarios (001-R1/R2/R4/R5): unauthenticated redirect; zero/one/multiple
+workspaces; all cumulative roles; draft clearing and stale mutation results on
+switch; create→run→approval→monitoring; membership removal; session expiry; logout.
+Use no live Google sign-in or model calls. Record exact commands and test counts,
+retain screenshots/traces locally on failures. T15 final review is complete; see
+the requirement/evidence map in validation.md.
+
 ## Rollout and recovery
 
 1. Validate migrations and all tests on a disposable PostgreSQL database. Verify
@@ -217,7 +264,7 @@ available; see `database/README.md` for the commands.
 2. Back up any existing durable data; resolve old owner/admin memberships explicitly.
    Provision the new Firebase user and supply deployment-specific connection inputs.
 3. Quiesce the old application, export and verify all in-memory state before restart.
-4. Apply 001 only to a new database, then outstanding 002/003 migrations. Import into
+4. Apply 001 only to a new database, then outstanding 002–004 migrations and role grants. Import into
    the new workspace, assign membership, and verify counts and canonical state.
 5. Deploy coordinated backend/frontend with database configuration and private
    connectivity. Smoke-test isolation, approvals, and persistence before reopening

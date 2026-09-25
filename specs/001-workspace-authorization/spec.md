@@ -1,11 +1,11 @@
 # 001: Workspace authorization
 
-Status: In progress — schema and durable repository implemented; API cutover pending
+Status: Implemented — validated and reviewed on 2026-09-25; deployment is separate
 
 ## Problem and outcome
 
-Firebase sessions identify callers, but campaign routes currently share one global
-repository and do not enforce roles. Users should access only campaigns in their
+Before this feature, Firebase sessions identified callers, but campaign routes
+shared one global repository without role enforcement. Users should access only campaigns in their
 workspace and perform only actions their workspace role permits.
 
 ## Scope
@@ -17,7 +17,7 @@ durable campaign storage, and migration of existing campaigns into a new workspa
 Exclude invitations, workspace administration UI, external publication, and broader
 workload controls.
 
-## Proposed requirements and acceptance scenarios
+## Requirements and acceptance scenarios
 
 ### 001-R1: Tenant isolation
 
@@ -65,6 +65,9 @@ Agreed cumulative permissions:
 - Given missing, invalid, expired, or revoked sessions, when any campaign operation
   is requested, then it returns 401 and performs no state change.
 
+- Given a same-origin campaign/workspace API request without a session cookie,
+  then the frontend returns JSON 401 rather than redirecting the API fetch to HTML.
+
 ### 001-R5: Workspace selection
 
 - Given a user with one accessible workspace, when they open the dashboard, then
@@ -76,6 +79,14 @@ Agreed cumulative permissions:
   before granting access.
 - Given a user without workspace membership, when they open the dashboard, then
   no campaign workspace is available and they cannot grant themselves access.
+
+- Given a workspace switch, when old list/create/run/approval responses arrive,
+  then they cannot restore old content or trigger follow-up runs; drafts are cleared.
+- Given logout or session expiry, then selection and campaign content clear and
+  pending discovery cannot restore access while navigation completes.
+- Given membership denial, then inaccessible content clears and discovery refreshes.
+- Given browser-supplied identity or role headers, then the proxy forwards only
+  the verified session and selected workspace, never those identity claims.
 
 ### 001-R6: Operator-managed membership
 
@@ -106,7 +117,8 @@ Agreed cumulative permissions:
 ## Contracts and dependencies
 
 Build on `database/migrations/001_core_schema.sql` and its workspace membership
-model. The active backend still uses InMemoryCampaignRepository. The [implementation plan](plan.md) defines the PostgreSQL adapter, transactions,
+model. The active backend uses workspace-bound PostgreSQL storage. The
+[implementation plan](plan.md) defines the PostgreSQL adapter, transactions,
 API contract, and coordinated frontend changes; SQL files alone do not provide
 runtime isolation. Do not trust a client-supplied workspace without
 resolving membership from the verified UID.
@@ -139,39 +151,41 @@ connection values are supplied at rollout time.
 
 ## Evidence
 
-| Requirement | Planned validation | Result |
+Validation on 2026-09-25:
+
+| Requirement | Evidence | Result |
 | --- | --- | --- |
-| 001-R1 | Two-workspace API tests across every campaign route | Not implemented/run |
-| 001-R2 | Role-by-operation matrix; forged membership; no mutation or runner calls on denial | Not implemented/run |
-| 001-R3 | Verified UID assertion and transaction rollback on audit failure | Not implemented/run |
-| 001-R4 | Session failure matrix across every campaign route | Not implemented/run |
-| 001-R5 | Dashboard scenarios for zero, one, and multiple workspaces; selected workspace propagation and backend membership enforcement | Not implemented/run |
-| 001-R6 | Management command provisioning tests; PostgreSQL membership lookup; denial of self-provisioning and role elevation | Not implemented/run |
-| 001-R7 | Restart persistence; import into new workspace with explicit user ownership; failed/repeated import and historical actor preservation | Not implemented/run |
+| 001-R1 | Workspace-scoped repository and API route tests | Passed |
+| 001-R2 | Four-role operation matrix, forged claims, denial without writes, schema constraints | Passed |
+| 001-R3 | Verified UID, atomic audit rollback, immutable history, legacy import provenance | Passed |
+| 001-R4 | Missing/invalid/expired/revoked session API tests | Passed |
+| 001-R5 | Backend discovery and membership enforcement; dashboard scenarios | Backend, frontend interaction tests, and desktop/mobile browser smoke passed |
+| 001-R6 | Operator provisioning, identity conflicts, suspension, role replacement, privilege separation | Passed |
+| 001-R7 | Durable restart, execution recovery, full-state import, exact retry, collisions, rollback | Passed |
 
-Implementation evidence on 2026-09-24:
+From `00_backend/`:
 
-- From `00_backend/`, `.venv/bin/python -m pytest -m 'not integration'`: 35 passed, including 15 database settings/lifecycle
-  checks and existing auth, lifecycle, configuration, and agent tests.
+- `.venv/bin/python -m pytest -m 'not integration'`: 63 passed.
 - With the disposable localhost `TEST_DATABASE_URL`, `.venv/bin/python -m pytest
-  -m integration`: 18 passed against PostgreSQL 16. Covers migrations 001–003,
-  legacy-role abort/retry, immutable UID snapshots/history, optional emails,
-  restricted runtime/operator grants, schema readiness, complete campaign round
-  trips across pool restarts, workspace isolation, stale/concurrent writes,
-  failed-child rollback, and consistent reads during a concurrent save.
-- `uv pip check --cache-dir /tmp/campaign-uv-cache`: all 134 installed packages
-  compatible. Runtime and development dependencies are pinned in `uv.lock`.
-- Database mode/settings, bounded pools, safe startup errors, shutdown cleanup, and
-  an independently tested FastAPI lifespan factory are implemented. Cloud SQL
-  private-IP/IAM connection behavior is mocked; no live Cloud SQL call was made.
+  -m integration`: 42 passed against PostgreSQL 16, including migrations 001–004,
+  restricted runtime/operator roles, durable API authorization and execution,
+  and the export→import→restart verification rehearsal.
 
-These checks establish the schema, connection foundation, and durable storage
-adapter, not full feature completion. Generic saves cannot alter approval history.
-Atomic approval decisions, phase execution locks/recovery, API authorization,
-operator commands, and frontend integration remain pending. The active API still
-uses memory until the coordinated authorization/orchestration cutover. Migrations
-were applied only to disposable integration databases, not a deployed database.
+Firebase lookup and legacy HTTP sources are mocked in the operations tests;
+PostgreSQL transactions and grants are exercised against a real disposable server.
+No live Firebase accounts, deployed databases, or production campaigns were changed.
+Cloud SQL private-IP/IAM behavior remains mocked. The operational steps and recovery
+procedures are in [the runbook](../../database/OPERATIONS.md).
 
-Next step: implement T06–T08 (durable orchestration and API authorization), then
-attach the adapter, database lifespan, and schema-readiness guard. See unchecked tasks.
-This work does not authorize infrastructure deployment.
+Frontend validation on 2026-09-25: `bun run test` passed 33 interaction/client/proxy
+tests, `bun run lint` passed, and `bun run build` passed. Tests mock Firebase/session
+and HTTP boundaries. `bun run test:browser` passed 24 Chromium checks against
+the standalone production build with isolated session/API fixtures, covering
+12 scenarios on desktop/mobile. See [validation and final review evidence](validation.md) for
+commands, coverage boundaries, and environment recovery.
+
+T14 documentation and T15 final review are complete. All tasks in
+[tasks.md](tasks.md) are checked. The [final requirement review](validation.md#t15-final-requirement-review)
+links each requirement to implementation and acceptance evidence and records the
+two authentication regressions resolved before completion. Live deployment and
+migration remain separate rollout work; this spec does not authorize deployment.

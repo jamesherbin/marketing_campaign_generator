@@ -15,6 +15,7 @@ dependencies = [
     "gunicorn>=23,<24",
     "asyncpg==0.31.0",
     "cloud-sql-python-connector[asyncpg]==1.22.0",
+    "httpx==0.28.1",
 ]
 
 [dependency-groups]
