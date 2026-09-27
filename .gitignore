@@ -138,13 +138,26 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
+!.env.example
 .envrc
+*.env
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Local cloud credentials and private keys
+application_default_credentials.json
+credentials.json
+*service-account*.json
+*firebase-adminsdk*.json
+*.pem
+*.key
+*.p12
+*.pfx
 
 # Spyder project settings
 .spyderproject

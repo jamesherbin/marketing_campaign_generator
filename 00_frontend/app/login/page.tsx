@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { GoogleAuthProvider, inMemoryPersistence, setPersistence, signInWithPopup, signOut } from 'firebase/auth'
+import { inMemoryPersistence, setPersistence, signInWithPopup, signOut } from 'firebase/auth'
 import { firebaseAuth } from '@/lib/firebase-client'
+import { createGoogleAuthProvider } from '@/lib/google-auth-provider'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -16,7 +17,7 @@ export default function LoginPage() {
     setError(null)
     try {
       await setPersistence(firebaseAuth, inMemoryPersistence)
-      const result = await signInWithPopup(firebaseAuth, new GoogleAuthProvider())
+      const result = await signInWithPopup(firebaseAuth, createGoogleAuthProvider())
       const idToken = await result.user.getIdToken()
       const response = await fetch('/api/auth/session', {
         method: 'POST',

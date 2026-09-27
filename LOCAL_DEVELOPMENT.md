@@ -19,6 +19,134 @@ Deterministic runners do not call models or need a Gemini API key, but the runni
 application still requires PostgreSQL and Firebase authentication. Ordinary unit
 and browser fixture tests need no live Firebase credentials.
 
+## Docker Compose quick start
+
+The supported first-run stack is PostgreSQL, the API, and the frontend in
+`compose.local.yaml`. It uses the persistent local database on port 5433; the
+separate integration-test database on port 55432 is disposable and must not be
+used for campaigns you want to keep. Run these commands from the repository root.
+
+Create the ignored root `.env` once. Generate three distinct URL-safe passwords
+(hex avoids URL-encoding issues), set the app UID to the output of `id -u`, and
+set the ADC path to the absolute path of your local credentials file:
+
+```sh
+[ -f .env ] || cp .env.example .env
+openssl rand -hex 24
+id -u
+```
+
+Edit `.env` and replace the three `LOCAL_*_PASSWORD` examples with separate
+generated values, `LOCAL_APP_UID` with the `id -u` output, and
+`GOOGLE_APPLICATION_CREDENTIALS_HOST` with the full path to
+`~/.config/gcloud/application_default_credentials.json` (expand `~` yourself).
+The example targets Firebase project `marketing-generator-51cc0`; its public web
+configuration must remain matched to `GOOGLE_CLOUD_PROJECT`. These web values are
+not credentials. Keep `.env` private and do not add credential files to the repo.
+
+If local ADC does not exist yet, create it with:
+
+```sh
+gcloud auth application-default login
+```
+
+In the Firebase console for `marketing-generator-51cc0`, ensure Google is enabled
+as a sign-in provider and `localhost` is an authorized domain. The developer must
+also have an existing Firebase user in this project. Compose mounts ADC
+read-only at `/run/secrets/google-adc.json` in both application containers and
+runs them as your local UID; do not loosen the host file's permissions. The
+Firebase Admin SDK uses this ADC, while browser sign-in uses the public web-app
+settings. Both must target the same project.
+
+Start PostgreSQL, initialize restricted database roles, and explicitly apply the
+ordered migrations and grants before bringing up the API:
+
+```sh
+docker compose -f compose.local.yaml up -d --wait postgres
+docker compose -f compose.local.yaml run --rm migrate
+docker compose -f compose.local.yaml up -d --build --wait api frontend
+docker compose -f compose.local.yaml ps
+```
+
+Open the frontend at <http://localhost:3000>, API health at
+<http://localhost:8080/health>, and API docs at <http://localhost:8080/docs>.
+The API health endpoint reports app startup/runner status; its successful
+container health check follows startup schema validation but does not continually
+probe PostgreSQL. The frontend health check requests the public `/login` page;
+the authenticated frontend `/api/health` route is not an unauthenticated probe.
+
+Provision workspace access once the API is ready and you know the Firebase UID
+(not email). The workspace creator is not automatically granted membership, so
+run both operator commands from `00_backend/` in a host terminal with backend
+dependencies installed. Source the root Compose settings, then explicitly set
+the operator database URL; the CLI intentionally does not read Compose `.env`:
+
+```sh
+cd 00_backend
+uv sync --locked
+set -a
+source ../.env
+set +a
+export OPERATOR_DATABASE_MODE=local
+export OPERATOR_DATABASE_URL="postgresql://campaign_operator:${LOCAL_CAMPAIGN_OPERATOR_PASSWORD}@127.0.0.1:5433/campaigns"
+.venv/bin/python -m campaign.manage workspace-create \
+  --name 'Local campaign team' --slug local-campaign-team --creator-uid YOUR_FIREBASE_UID
+# Copy workspace_id from the JSON result, then assign your own explicit role:
+.venv/bin/python -m campaign.manage member-set \
+  --workspace-id WORKSPACE_UUID --uid YOUR_FIREBASE_UID --role approver
+```
+
+Sign in at <http://localhost:3000> using the same Firebase account. `approver`
+includes viewer, editor, and runner capabilities. The full role behavior is
+described under [workspace provisioning](#6-provision-workspace-membership).
+
+Useful lifecycle commands:
+
+```sh
+docker compose -f compose.local.yaml logs -f postgres api frontend
+docker compose -f compose.local.yaml stop                 # stop, preserve data
+docker compose -f compose.local.yaml start                # restart stopped services
+docker compose -f compose.local.yaml down                 # remove containers/network; keep DB volume
+docker compose -f compose.local.yaml up -d --wait postgres
+docker compose -f compose.local.yaml run --rm migrate     # safe to rerun after schema v4
+docker compose -f compose.local.yaml up -d --wait api frontend
+```
+
+To permanently erase local campaigns and start with an empty database, first
+confirm the stack name and then remove this Compose project's volume. This reset
+is destructive and cannot be undone; it does not target the separate test
+database:
+
+```sh
+docker compose -f compose.local.yaml down
+docker volume ls --filter name=marketing-campaign-local_campaign-postgres-data
+docker volume rm marketing-campaign-local_campaign-postgres-data
+```
+
+After a reset, repeat the PostgreSQL, migration, and app startup sequence above.
+For service-specific failures, inspect `docker compose -f compose.local.yaml logs <service>`
+and confirm root `.env` values. PostgreSQL initialization scripts run
+only for a new volume; changing a password in `.env` does not change a role's
+password in an existing database volume. Use the explicit volume reset to make
+bootstrap changes take effect, or alter the database role deliberately.
+
+Common Compose failures:
+
+| Symptom | Check |
+| --- | --- |
+| Compose says a variable is unset or still uses an example | Complete root `.env`; replace all password/path placeholders. Compose reads this file automatically from the repo root. |
+| ADC bind mount fails or Admin SDK reports credential errors | Confirm `GOOGLE_APPLICATION_CREDENTIALS_HOST` is an existing absolute file path, rerun ADC login if needed, and ensure `LOCAL_APP_UID` equals `id -u`. Keep the file owner-readable; mount is read-only. |
+| API exits with database startup/schema error | Check PostgreSQL health and logs, then run the explicit `migrate` service before starting API/frontend. The API does not apply migrations. |
+| Frontend is healthy but login fails | Check Firebase Google provider, `localhost` authorized domain, matching project IDs, ADC access, and that the user exists in the project. |
+| Session endpoint returns 200 but `/api/auth/me` returns 401 over local HTTP | Rebuild/restart the frontend after config or image changes, use the exact origin in `APP_ORIGIN`, and check that local HTTP cookies are not marked `Secure`. Cookie security follows the configured origin protocol. |
+| Google sign-in reuses the previous account | Sign out of the app and choose the intended account from Google's account chooser; the app requests the chooser on each sign-in. |
+| Login succeeds but dashboard has no workspace access | Run `workspace-create` and `member-set` for the exact Firebase UID; login alone does not create database membership. |
+| A port is already allocated | Stop the conflicting local service or update the published port in Compose and the matching browser/API settings. |
+
+Contributors preferring native Python/Bun servers can use the environment and
+commands in the sections below; the Compose stack and native workflow share the
+same Firebase and database requirements.
+
 ## 2. Where and how to define variables
 
 | Consumer | Where to define values | Loading behavior |
@@ -181,6 +309,11 @@ The examples above do not identify a working app. Match the backend's Firebase
 project. Review the copied example file rather than assuming its existing project
 values belong to your environment.
 
+These five `NEXT_PUBLIC_FIREBASE_*` values are compiled into the frontend image
+at build time. They are public web-app configuration, not service-account
+credentials or private API keys. The frontend Dockerfile requires all five build
+arguments.
+
 In a second terminal, from the repository root, with ADC configured:
 
 ```sh
@@ -208,7 +341,7 @@ and selected workspace. Do not expose server credentials as `NEXT_PUBLIC_*`.
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Required, no default | Firebase web app `messagingSenderId`, e.g. `123456789012`. Required by this app's configuration check even if you do not use messaging. |
 | `NEXT_PUBLIC_API_URL` | Legacy fallback; leave unset for normal local use | Proxies use `API_URL`, then this value, then `http://localhost:8080`. `next.config.js` also exposes a default of localhost for this public setting. Example if needed: `http://localhost:8080`. Never put secrets in it. |
 | `NEXT_PUBLIC_FRONTEND_URL` | Not required; currently unused by application code | Present in example/build configuration but does not currently set metadata or security behavior. Example: `http://localhost:3000`. Set `APP_ORIGIN` for origin checks. |
-| `NODE_ENV` | Managed by Next.js | `development` for `bun run dev`, `production` for production builds/server. Controls secure session-cookie flags. Do not set manually for ordinary development. |
+| `NODE_ENV` | Managed by Next.js | `development` for `bun run dev`, `production` for production builds/server. It does not control session-cookie security; cookie `Secure` follows the configured frontend origin protocol. Do not set manually for ordinary development. |
 | `PORT` | Next CLI normally defaults to `3000` | For a different dev port, use `bun run dev --port 3001` and update `APP_ORIGIN`. Do not depend on setting it in `.env.local`; set a CLI option or export before launch. |
 | `HOSTNAME` | Standalone server/container setting | Standalone bind address. Production Dockerfile sets `0.0.0.0`; browser test launcher sets `127.0.0.1`. No local dev override needed. |
 | `NEXT_TELEMETRY_DISABLED` | Optional; container sets `1` | Set/export `1` to disable Next.js telemetry. Not needed for application functionality. |
@@ -304,7 +437,7 @@ charges; deterministic mode avoids those calls.
 
 ## 8. Validation and troubleshooting
 
-From `00_backend/`, unit tests:
+From `00_backend/`, run unit tests:
 
 ```sh
 .venv/bin/python -m pytest -m 'not integration'
@@ -368,3 +501,36 @@ Checked against [backend settings](00_backend/campaign/config.py),
 [frontend client settings](00_frontend/lib/firebase-client.ts),
 [frontend Admin settings](00_frontend/lib/firebase-admin.ts), and
 [frontend proxy](00_frontend/lib/backend-proxy.ts).
+## Build local Docker images
+
+Run both build commands from the repository root. The backend Docker build context
+must be the repository root because the image copies `agents/` and `00_backend/`.
+The frontend context is `00_frontend/`.
+
+```sh
+docker build \
+  -f 00_backend/Dockerfile \
+  -t marketing-campaign-api:local \
+  .
+
+docker build \
+  -f 00_frontend/Dockerfile \
+  --build-arg NEXT_PUBLIC_API_URL=http://localhost:8080 \
+  --build-arg NEXT_PUBLIC_FRONTEND_URL=http://localhost:3000 \
+  --build-arg NEXT_PUBLIC_FIREBASE_API_KEY=REPLACE_WITH_FIREBASE_WEB_API_KEY \
+  --build-arg NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=campaign-demo.firebaseapp.com \
+  --build-arg NEXT_PUBLIC_FIREBASE_PROJECT_ID=campaign-demo \
+  --build-arg NEXT_PUBLIC_FIREBASE_APP_ID=1:123456789012:web:abcdef0123456789 \
+  --build-arg NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=123456789012 \
+  -t marketing-campaign-frontend:local \
+  00_frontend
+```
+
+Replace the Firebase examples with values from your Firebase web app. Build args
+are appropriate here because these values are public and go into the browser
+bundle. Never pass database URLs, service account keys, session cookies, or model
+API keys as image build arguments. Configure backend database/Firebase Admin ADC
+and frontend server `API_URL`, `APP_ORIGIN`, and Google ADC when starting the
+containers; those are runtime settings, not build arguments. In particular,
+`API_URL` for the frontend is the backend URL reachable **from the frontend
+container**, so `localhost` only works if the backend shares that network namespace.

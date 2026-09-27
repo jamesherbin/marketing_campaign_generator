@@ -152,6 +152,39 @@ login does not automatically grant access.
 The application should never trust a workspace ID, actor ID, email, or role sent
 by the browser without resolving it from the authenticated server-side identity.
 
+## Persistent local development PostgreSQL
+
+Local app development uses a separate PostgreSQL service from the disposable
+integration-test service below. It binds only to `127.0.0.1:5433` and persists
+campaigns in its own named Docker volume. Do not point the API at the test
+service on port `55432`.
+
+From the repository root, create the ignored Compose environment file if it does
+not exist, then replace each example password with a unique local value:
+
+```sh
+[ -f .env ] || cp .env.example .env
+```
+
+Start PostgreSQL and apply migrations 001–004 plus application grants:
+
+```sh
+docker compose -f compose.local.yaml up -d --wait postgres
+docker compose -f compose.local.yaml run --rm migrate
+```
+
+The first database initialization creates separate `campaign_migrator`,
+`campaign_runtime`, and `campaign_operator` logins. The image bootstrap superuser
+is disabled after creating them. The migration command is safe to repeat after
+version 4; it applies migration 004 when the database is at version 3, and stops
+on an ambiguous partial schema. The API must use the runtime login and management
+commands must use the operator login. Never use bootstrap or migrator credentials
+for application requests.
+
+Normal `docker compose ... down` preserves the local database volume. Delete the
+development volume only when intentionally resetting local campaign data. This
+service is for local development; it is not a backup or production database.
+
 ## Disposable PostgreSQL tests
 
 From the repository root, start Docker and run:

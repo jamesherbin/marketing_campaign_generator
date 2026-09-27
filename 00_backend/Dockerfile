@@ -29,5 +29,6 @@ EXPOSE 8080
 STOPSIGNAL SIGTERM
 
 # main.py reads Cloud Run's PORT variable through the typed Settings model and
-# starts Uvicorn on 0.0.0.0. One process is intentional while storage is in-memory.
+# starts Uvicorn on 0.0.0.0. A single worker keeps process behavior predictable;
+# durable campaign state is shared through PostgreSQL.
 CMD ["python", "main.py"]

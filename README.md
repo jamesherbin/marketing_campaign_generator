@@ -47,9 +47,12 @@ The dashboard displays campaign status, phase progress, strategy, creative asset
 
 ## Run locally
 
-See [Local development and environment reference](LOCAL_DEVELOPMENT.md) for the
-complete setup sequence, required/optional variables, where to define them, and
-example values for the API, frontend, operator commands, and tests.
+For the first-run Docker Compose path, follow the
+[Docker Compose quick start](LOCAL_DEVELOPMENT.md#docker-compose-quick-start).
+The [local development and environment reference](LOCAL_DEVELOPMENT.md) also
+covers native Python/Bun workflows, required and optional variables, where to
+define them, and example values for the API, frontend, operator commands, and
+tests.
 
 ### 1. Prepare the database and access
 

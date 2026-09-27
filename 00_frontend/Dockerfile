@@ -27,11 +27,26 @@ COPY . .
 # Build arguments for environment variables (needed at build time for NEXT_PUBLIC_*)
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_FRONTEND_URL
+ARG NEXT_PUBLIC_FIREBASE_API_KEY
+ARG NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+ARG NEXT_PUBLIC_FIREBASE_PROJECT_ID
+ARG NEXT_PUBLIC_FIREBASE_APP_ID
+ARG NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_PUBLIC_FRONTEND_URL=${NEXT_PUBLIC_FRONTEND_URL}
+ENV NEXT_PUBLIC_FIREBASE_API_KEY=${NEXT_PUBLIC_FIREBASE_API_KEY}
+ENV NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}
+ENV NEXT_PUBLIC_FIREBASE_PROJECT_ID=${NEXT_PUBLIC_FIREBASE_PROJECT_ID}
+ENV NEXT_PUBLIC_FIREBASE_APP_ID=${NEXT_PUBLIC_FIREBASE_APP_ID}
+ENV NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}
 
 # Build the application
 ENV NEXT_TELEMETRY_DISABLED=1
+RUN test -n "$NEXT_PUBLIC_FIREBASE_API_KEY" \
+    && test -n "$NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN" \
+    && test -n "$NEXT_PUBLIC_FIREBASE_PROJECT_ID" \
+    && test -n "$NEXT_PUBLIC_FIREBASE_APP_ID" \
+    && test -n "$NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID"
 RUN bun run build
 
 # =============================================================================
@@ -39,6 +54,10 @@ RUN bun run build
 # =============================================================================
 FROM node:20-alpine AS runner
 WORKDIR /app
+
+# Local Compose builds set this to the developer UID so a mode-0600 host ADC
+# file remains private and readable. Production retains the non-root nextjs UID.
+ARG APP_UID=1001
 
 # Set production environment only in the final runtime stage
 ENV NODE_ENV=production
@@ -58,6 +77,10 @@ RUN chown nextjs:nodejs .next
 # Copy standalone build output
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Compose may run this image with the host UID; keep Next's writable cache
+# directory owned by that UID. The production default remains nextjs (1001).
+RUN chown -R "${APP_UID}:nodejs" .next
 
 USER nextjs
 

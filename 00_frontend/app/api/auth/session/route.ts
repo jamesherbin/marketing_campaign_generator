@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { firebaseAdminAuth } from '@/lib/firebase-admin'
 import { SESSION_MAX_AGE_SECONDS } from '@/lib/auth-session'
 import { SESSION_COOKIE_NAME } from '@/lib/auth-constants'
+import { usesSecureSessionCookie } from '@/lib/auth-cookie'
 import { hasTrustedOrigin } from '@/lib/request-security'
 
 export async function POST(request: NextRequest) {
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({ user: { uid: claims.uid, email: claims.email ?? null } })
     response.cookies.set(SESSION_COOKIE_NAME, sessionCookie, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: usesSecureSessionCookie(request),
       sameSite: 'lax',
       maxAge: SESSION_MAX_AGE_SECONDS,
       path: '/',

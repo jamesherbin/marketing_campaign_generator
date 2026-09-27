@@ -1,0 +1,129 @@
+name: marketing-campaign-local
+
+services:
+  postgres:
+    image: postgres:16@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
+    environment:
+      POSTGRES_USER: campaign_bootstrap
+      POSTGRES_PASSWORD: ${LOCAL_POSTGRES_BOOTSTRAP_PASSWORD:?Set LOCAL_POSTGRES_BOOTSTRAP_PASSWORD in the root .env file}
+      POSTGRES_DB: campaigns
+      LOCAL_CAMPAIGN_MIGRATOR_PASSWORD: ${LOCAL_CAMPAIGN_MIGRATOR_PASSWORD:?Set LOCAL_CAMPAIGN_MIGRATOR_PASSWORD in the root .env file}
+      LOCAL_CAMPAIGN_RUNTIME_PASSWORD: ${LOCAL_CAMPAIGN_RUNTIME_PASSWORD:?Set LOCAL_CAMPAIGN_RUNTIME_PASSWORD in the root .env file}
+      LOCAL_CAMPAIGN_OPERATOR_PASSWORD: ${LOCAL_CAMPAIGN_OPERATOR_PASSWORD:?Set LOCAL_CAMPAIGN_OPERATOR_PASSWORD in the root .env file}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - campaign-postgres-data:/var/lib/postgresql/data
+      - ./database/local/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U campaign_runtime -d campaigns"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 3s
+
+  migrate:
+    image: postgres:16@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
+    profiles: [tools]
+    entrypoint: ["/bin/bash", "/workspace/database/local/migrate.sh"]
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: campaigns
+      PGUSER: campaign_migrator
+      PGPASSWORD: ${LOCAL_CAMPAIGN_MIGRATOR_PASSWORD:?Set LOCAL_CAMPAIGN_MIGRATOR_PASSWORD in the root .env file}
+      LOCAL_CAMPAIGN_RUNTIME_ROLE: campaign_runtime
+      LOCAL_CAMPAIGN_OPERATOR_ROLE: campaign_operator
+    volumes:
+      - ./database/local/migrate.sh:/workspace/database/local/migrate.sh:ro
+      - ./database/migrations:/workspace/database/migrations:ro
+      - ./database/grants.sql:/workspace/database/grants.sql:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: 00_backend/Dockerfile
+    user: "${LOCAL_APP_UID:?Set LOCAL_APP_UID to the value of id -u}:10001"
+    environment:
+      CAMPAIGN_RUNNER_MODE: deterministic
+      DATABASE_MODE: local
+      DATABASE_URL: "postgresql://campaign_runtime:${LOCAL_CAMPAIGN_RUNTIME_PASSWORD:?Set LOCAL_CAMPAIGN_RUNTIME_PASSWORD in the root .env file}@postgres:5432/campaigns"
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-marketing-generator-51cc0}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/google-adc.json
+      HOME: /tmp
+      PORT: "8080"
+      LOG_LEVEL: info
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - type: bind
+        source: ${GOOGLE_APPLICATION_CREDENTIALS_HOST:?Set GOOGLE_APPLICATION_CREDENTIALS_HOST in the root .env file}
+        target: /run/secrets/google-adc.json
+        read_only: true
+        bind:
+          create_host_path: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2)"
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./00_frontend
+      dockerfile: Dockerfile
+      args:
+        APP_UID: ${LOCAL_APP_UID:?Set LOCAL_APP_UID to the value of id -u}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+        NEXT_PUBLIC_FRONTEND_URL: ${NEXT_PUBLIC_FRONTEND_URL:-http://localhost:3000}
+        NEXT_PUBLIC_FIREBASE_API_KEY: ${NEXT_PUBLIC_FIREBASE_API_KEY:?Set NEXT_PUBLIC_FIREBASE_API_KEY in the root .env file}
+        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:?Set NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN in the root .env file}
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${NEXT_PUBLIC_FIREBASE_PROJECT_ID:-marketing-generator-51cc0}
+        NEXT_PUBLIC_FIREBASE_APP_ID: ${NEXT_PUBLIC_FIREBASE_APP_ID:?Set NEXT_PUBLIC_FIREBASE_APP_ID in the root .env file}
+        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:?Set NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID in the root .env file}
+    user: "${LOCAL_APP_UID:?Set LOCAL_APP_UID to the value of id -u}:1001"
+    environment:
+      API_URL: http://api:8080
+      APP_ORIGIN: http://localhost:3000
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-marketing-generator-51cc0}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/google-adc.json
+      HOME: /tmp
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      NEXT_TELEMETRY_DISABLED: "1"
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - type: bind
+        source: ${GOOGLE_APPLICATION_CREDENTIALS_HOST:?Set GOOGLE_APPLICATION_CREDENTIALS_HOST in the root .env file}
+        target: /run/secrets/google-adc.json
+        read_only: true
+        bind:
+          create_host_path: false
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/login').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"
+      interval: 5s
+      timeout: 6s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  campaign-postgres-data:
