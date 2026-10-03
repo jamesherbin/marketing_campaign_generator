@@ -51,14 +51,16 @@ def create_app(database_settings_factory=DatabaseSettings, settings_factory=get_
         settings = settings_factory()
         async with database_pool(database_settings_factory()) as pool:
             await require_campaign_schema(pool)
+            runners = build_phase_runners(settings.runner_mode, settings=settings)
             app.state.database_pool = pool
             app.state.runner_mode = settings.runner_mode
-            app.state.runners = build_phase_runners(settings.runner_mode)
+            app.state.runners = runners
             try:
                 yield
             finally:
                 del app.state.database_pool
                 del app.state.runners
+                del app.state.runner_mode
 
     app = FastAPI(title='Marketing Campaign Orchestrator API', version='0.2.0', lifespan=lifespan)
 

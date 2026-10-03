@@ -259,8 +259,8 @@ Uvicorn CLI invocation uses its own `--port` and `--log-level` options instead.
 ### Backend variable reference
 
 All settings below can be defined in `00_backend/.env` or exported, except the
-credential path, which should be exported for SDK use. Export the ADK/model-related
-settings as shown later when using live models.
+credential path, which should be exported for SDK use. The backend passes model
+settings from `.env` directly to its ADK clients; exports are optional overrides.
 
 | Variable | Required/default | Purpose and example |
 | --- | --- | --- |
@@ -280,9 +280,9 @@ settings as shown later when using live models.
 | `GOOGLE_CLOUD_PROJECT` | Set explicitly for predictable Firebase project selection | Firebase Admin project; also used by Vertex AI. Example: `campaign-demo`. Backend may otherwise discover the project through ADC. |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Optional; unset for user ADC | Exported absolute path to an authorized Google credential file. Example: `/absolute/private/path/campaign-dev-service-account.json`. Never the JSON content itself. |
 | `GEMINI_API_KEY` | Only for Gemini API authentication in ADK mode | Secret model key; example placeholder: `REPLACE_WITH_GEMINI_KEY`. Leave unset in deterministic/Vertex mode. |
-| `GOOGLE_API_KEY` | Alternative to `GEMINI_API_KEY` | Secret Gemini API key; define one key variable, not both. Example placeholder: `REPLACE_WITH_GEMINI_KEY`. |
+| `GOOGLE_API_KEY` | Alternative to `GEMINI_API_KEY` | Secret Gemini API key; takes precedence over `GEMINI_API_KEY` when both are set. Example placeholder: `REPLACE_WITH_GEMINI_KEY`. |
 | `GOOGLE_GENAI_USE_VERTEXAI` | Optional; `false` | Set `true` to use Vertex AI with ADC instead of Gemini API key authentication. |
-| `GOOGLE_CLOUD_LOCATION` | Optional application default; `us-central1` | Vertex AI region. Export explicitly for the model SDK, e.g. `us-central1`. |
+| `GOOGLE_CLOUD_LOCATION` | Optional application default; `us-central1` | Vertex AI region passed directly to the model SDK, e.g. `us-central1`. |
 
 Cloud SQL mode is optional for local development. ADC alone does not supply
 network access to a private instance; the local machine must have the required
@@ -405,9 +405,13 @@ perform a migration of old campaign data.
 
 ## 7. Optional live model configuration
 
-In the backend terminal, select one authentication mode and export its SDK settings.
-The typed backend settings read `.env`, but the runner factory does not copy those
-values into the Google model SDK's environment. Exporting removes that ambiguity.
+Select one authentication mode in `00_backend/.env` or the backend process
+environment. Backend Settings pass the selected configuration directly into lazy
+ADK clients without modifying the process environment. Process variables override
+`.env` for the same setting. Vertex mode uses project/location and ADC regardless
+of configured API keys. Otherwise `GOOGLE_API_KEY` takes precedence over
+`GEMINI_API_KEY`; with neither explicit path, the SDK uses ambient discovery.
+The following examples use exports; restart the backend after configuration changes.
 
 Gemini API mode:
 
@@ -432,8 +436,35 @@ unset GEMINI_API_KEY GOOGLE_API_KEY
 
 Keep the Firebase and Vertex project choice consistent with the shared
 `GOOGLE_CLOUD_PROJECT` setting. If unused keys remain in `.env`, remove/comment them
-there as well. Live model calls require the selected project's access and may incur
+there as well to avoid ambiguity when switching modes. Live model calls require the selected project's access and may incur
 charges; deterministic mode avoids those calls.
+
+### Optional live smoke and recovery
+
+After deterministic tests and the container import check pass, an operator may
+create a disposable campaign in a provisioned workspace and run it in ADK mode.
+Use an existing verified session and the normal campaign API/dashboard:
+
+1. Run planning, development, and execution preparation. Confirm the campaign
+   stops at `awaiting_approval`, assets are draft, and activities are prepared.
+2. Review the generated text and record approval through an authorized approver.
+3. Run again; confirm monitoring completes with null values for requested metrics
+   and an explanation that live analytics are unavailable.
+
+This optional check makes billable provider calls and has **not** been run as part
+of the integration evidence. `/health` confirms startup and runner mode, not model
+availability, credentials, or content quality. Development delivers text assets
+and written visual concepts; approval never publishes or sends anything.
+
+Provider/output failures return 502 with a safe persisted error. Correct the
+configuration or content issue and explicitly retry the failed phase; completed
+upstream outputs remain. Connection loss returns 503 and releases the run lock;
+an interrupted phase can be explicitly retried afterward. A concurrent run returns
+409. Cleanup failures log only the phase and may leave an in-memory session resident.
+
+To return to placeholders, set `CAMPAIGN_RUNNER_MODE=deterministic` and restart.
+Review whether placeholder outputs are acceptable before retrying. Changing mode
+does not rerun completed phases, remove approval history, or publish activities.
 
 ## 8. Validation and troubleshooting
 

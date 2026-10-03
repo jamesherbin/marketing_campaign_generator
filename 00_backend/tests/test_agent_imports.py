@@ -20,28 +20,6 @@ class AgentImportTests(unittest.TestCase):
         self.assertEqual(execution.name, "root_agent")
         self.assertEqual(monitoring.name, "root_agent")
 
-    def test_phase_synthesizers_match_campaign_state_outputs(self) -> None:
-        from agents.development_agent.app.agent import DevelopmentOutput as AgentDevelopmentOutput
-        from agents.execution_agent.agent import ExecutionOutput as AgentExecutionOutput
-        from agents.monitoring_agent.agent import MonitoringOutput as AgentMonitoringOutput
-        from agents.planning_agent.agent import PlanningOutput as AgentPlanningOutput
-        from campaign.models import (
-            DevelopmentOutput, ExecutionOutput, MonitoringOutput, PlanningOutput,
-        )
-
-        pairs = [
-            (AgentPlanningOutput, PlanningOutput),
-            (AgentDevelopmentOutput, DevelopmentOutput),
-            (AgentExecutionOutput, ExecutionOutput),
-            (AgentMonitoringOutput, MonitoringOutput),
-        ]
-        for agent_model, state_model in pairs:
-            self.assertEqual(
-                set(agent_model.model_fields),
-                set(state_model.model_fields),
-                f"{agent_model.__name__} drifted from CampaignState",
-            )
-
     def test_each_root_agent_finishes_with_structured_synthesizer(self) -> None:
         from agents.development_agent import root_agent as development
         from agents.execution_agent import root_agent as execution

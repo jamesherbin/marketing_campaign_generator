@@ -38,8 +38,8 @@ alongside generated OpenAPI documentation.
 
 Individual phases can instead be invoked through
 `POST /api/v1/campaigns/{id}/phases/{phase}/run`. Invalid ordering returns HTTP
-409. The built-in runners are deterministic placeholders whose interfaces can be
-replaced with Google ADK adapters without changing the API contract.
+409. Runner selection supports deterministic placeholders and the four integrated
+ADK phase agents through the same API contract.
 
 ## API contract
 
@@ -99,29 +99,38 @@ lock is released. Execution prepares activities and does not publish externally.
 `campaign.adk_runner.AdkRunnerAdapter` can replace any deterministic phase
 runner. It creates an isolated ADK session, places the serialized campaign in
 session state, sends a prompt containing the phase output schema, consumes ADK
-events, and validates the final JSON response as the configured Pydantic model.
-The session exposes `campaign_brief` plus any completed `planning_output`,
-`development_output`, `execution_output`, and `monitoring_output`. Intermediate
+events, and validates the designated phase synthesizer's last non-partial final JSON
+response as the configured Pydantic model. Other authors cannot supply a phase
+result. Missing, empty, or invalid synthesizer output fails without fallback;
+validation errors omit raw model output. Generated assets must remain `draft`
+and execution activities `prepared`. With no trusted analytics connector, every
+requested success metric must appear by its exact name with a null value; any
+additional metrics must also be null. Violations fail the phase through the normal
+runner-error path. These checks apply to new ADK results, not historical records.
+The session exposes `campaign_brief` plus named outputs only for completed
+upstream phases. Both the prompt and session campaign snapshot exclude incomplete
+upstream outputs and stale current/later outputs. Each attempt creates a fresh
+session without changing the stored campaign. Sessions are deleted after success,
+failure, or cancellation. Cancellation waits for the cleanup attempt; ordinary
+cleanup failures emit a phase-only warning and preserve the invocation outcome. Intermediate
 subagents add their own `output_key` values for later agents in the same phase.
 
 ```python
-from agents.planning_agent import root_agent
-from campaign.adk_runner import AdkRunnerAdapter
-from campaign.models import Phase, PlanningOutput
+from campaign.config import get_settings
+from campaign.runner_factory import build_phase_runners
 
-planning_runner = AdkRunnerAdapter(
-    app_name="planning_agent",
-    phase=Phase.PLANNING,
-    output_model=PlanningOutput,
-    agent=root_agent,
-)
+settings = get_settings()
+runners = build_phase_runners(settings.runner_mode, settings=settings)
 ```
 
 The API constructs runners through `campaign.runner_factory.build_phase_runners`
 and passes them to `CampaignService`. The legacy `CampaignOrchestrator` remains
 for isolated tests; it is not the active API repository. All four phases must be
 present in the runner mapping. Live calls require Gemini API-key or
-Vertex AI authentication.
+Vertex AI authentication. Agent prompts prioritize the brief's industry, constraints,
+budget, and preferred channels. Development produces draft text assets and written
+visual concepts using the text model; it does not generate or store image files.
+Completed planning is not a human approval event; execution retains its approval gate.
 
 Set `CAMPAIGN_RUNNER_MODE=adk` to make the API invoke the four ADK agents. The
 default is `deterministic`, which is safe for local development and tests and
@@ -134,6 +143,18 @@ export GEMINI_API_KEY="..."  # or configure Vertex AI credentials
 ```
 
 `GET /health` reports the active runner mode.
+
+ADK clients receive the backend's validated settings, including values loaded only
+from `.env`. Vertex mode uses project/location and Application Default Credentials
+and takes precedence over API keys. Otherwise, `GOOGLE_API_KEY` takes precedence
+over `GEMINI_API_KEY`; without explicit authentication settings, the SDK retains
+its ambient discovery behavior. Clients are created lazily, so startup does not
+verify provider credentials or model availability. Each backend instance configures
+a cloned agent tree without mutating package exports or the process environment.
+Use the [operator smoke/recovery steps](../LOCAL_DEVELOPMENT.md#optional-live-smoke-and-recovery)
+for optional live verification and explicit retries. The
+[integration spec](../specs/004-agent-backend-integration/spec.md#evidence) records
+unit, PostgreSQL, and network-disabled container evidence.
 
 ## Container and Cloud Run
 

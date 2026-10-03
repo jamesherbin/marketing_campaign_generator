@@ -226,7 +226,10 @@ the four supported roles, migrations 001–004, UID/history immutability, role g
 full campaign round trips, collection ordering, workspace scoping, concurrent
 version conflicts, consistent reads, and rollback of partially written state. API
 tests also cover session/role enforcement, approval atomicity, interrupted runs,
-and revoked access. Operator tests rehearse export/import, restart verification,
+and revoked access. ADK-specific API tests use real adapters with simulated event
+streams to verify approval/rejection retries, durable readback through a fresh API
+lifespan, safe provider/schema/semantic failures, and cleanup after interrupted
+runs, without live model calls. Operator tests rehearse export/import, restart verification,
 transaction rollback, and exact retry. See [validation evidence](../specs/001-workspace-authorization/validation.md).
 
 Stop the disposable test service from the repository root when finished:

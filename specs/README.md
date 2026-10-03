@@ -47,6 +47,8 @@ Git records history. Link superseding specs when a requirement is retired.
 | [000: Campaign lifecycle](000-campaign-lifecycle/spec.md) | Baseline | Existing behavior and test coverage |
 | [001: Workspace authorization](001-workspace-authorization/spec.md) | Implemented | Workspace isolation, roles, durable storage, and operator migration validated; deployment separate |
 | [002: Local development stack](002-local-development-stack/spec.md) | Implemented | Repeatable local Docker Compose setup with persistent PostgreSQL and Firebase configuration ([quick start](../LOCAL_DEVELOPMENT.md#docker-compose-quick-start)) |
+| [003: Color theme](003-color-theme/spec.md) | Implemented | Light/dark/system palettes with browser-local preference and desktop/mobile validation |
+| [004: Agent/backend integration](004-agent-backend-integration/spec.md) | Implemented | ADK integration, canonical outputs, isolated sessions, and lifecycle safeguards validated; live deployment separate |
 
 `todo.md` remains the broader backlog. Its authentication items predate parts of
 the Firebase implementation; verify each item against code before scheduling it.

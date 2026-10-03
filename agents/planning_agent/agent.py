@@ -11,14 +11,13 @@ goals_and_objectives = Agent(
     model='gemini-2.5-flash',
     name='goals_and_objectives',
     description='Marketing Campaign Goal and Objective Agent',
-    instruction="""You are a Marketing Director. 
-    
-    Industry: Consumer Packaged Goods
+    instruction="""Use the campaign brief {campaign_brief} as authoritative for industry, constraints, budget, and preferred channels. If industry is absent, use product and audience context without inventing an industry. You are a Marketing Director.
+
 
     Campaign brief: {campaign_brief}
 
     Task:
-    - Define the Goals and Objectives of a Marketing Campaign. 
+    - Define the Goals and Objectives of a Marketing Campaign.
     - Provide clear and quantifiable measurements that can be used to base other decisions.
     """,
     output_schema=GoalsAndObjectives,
@@ -33,15 +32,13 @@ market_and_audience_research = Agent(
     model='gemini-2.5-flash',
     name='market_and_audience_research',
     description='Market Research and Market Audience Agent',
-    instruction="""You are a Market and Audience Researcher.  
-    Industry:
-    - Your industry is Consumer Packaged Goods.
-    
+    instruction="""Use the campaign brief {campaign_brief} as authoritative for industry, constraints, budget, and preferred channels. If industry is absent, use product and audience context without inventing an industry. You are a Market and Audience Researcher.
+
     Campaign brief: {campaign_brief}
     Goals and objectives already defined: {goals_and_objectives}
 
     Task:
-    - Generate an analysis of the Market and Consumer Audience.  
+    - Generate an analysis of the Market and Consumer Audience.
     - Provide answers in clear manner that can be reused for decisions
     """,
     output_schema=MarketAndAudienceResearch,
@@ -58,10 +55,8 @@ position_and_value_prop = Agent(
     model='gemini-2.5-flash',
     name='position_and_value_prop',
     description='Market Position and Product Value Proposition Agent',
-    instruction="""You are a Market Researcher.
-    Industry:
-    - Your industry is Consumer Packaged Goods.
-    
+    instruction="""Use the campaign brief {campaign_brief} as authoritative for industry, constraints, budget, and preferred channels. If industry is absent, use product and audience context without inventing an industry. You are a Market Researcher.
+
     Campaign brief: {campaign_brief}
     Goals and objectives: {goals_and_objectives}
     Market and audience research: {market_and_audience_research}
@@ -82,10 +77,8 @@ message_and_channels = Agent(
     model='gemini-2.5-flash',
     name='message_and_channels',
     description='Market Key Messages and Channels Agent',
-    instruction="""You are a CMO.  
-    Industry:
-    - Your industry is Consumer Packaged Goods.  
-    
+    instruction="""Use the campaign brief {campaign_brief} as authoritative for industry, constraints, budget, and preferred channels. If industry is absent, use product and audience context without inventing an industry. You are a CMO.
+
     Campaign brief: {campaign_brief}
     Audience research: {market_and_audience_research}
     Positioning and value proposition: {position_and_value_prop}
@@ -108,16 +101,14 @@ budget_manager = Agent(
     model='gemini-2.5-flash',
     name='budget_manager',
     description='Campaign Budget Manager',
-    instruction="""You are a CMO.  
-    Industry:
-    - Your industry is Consumer Packaged Goods.  
-    
+    instruction="""Use the campaign brief {campaign_brief} as authoritative for industry, constraints, budget, and preferred channels. If industry is absent, use product and audience context without inventing an industry. You are a CMO.
+
     Campaign brief: {campaign_brief}
     Recommended messages and channels: {message_and_channels}
 
     Task:
-    - Generate a budget for a marketing plan. 
-    - The budget should consider social media channels as well as print and tv.  
+    - Generate a budget for a marketing plan.
+    - Use the brief's preferred channels and constraints; do not add incompatible channels.
     - Generate the budget so that it can be reused in other decisions.
     """,
     output_schema=BudgetManager,
@@ -140,7 +131,7 @@ planning_synthesizer = Agent(
     model='gemini-2.5-flash',
     name='planning_synthesizer',
     description='Produces the canonical structured planning phase output.',
-    instruction="""Synthesize the completed planning research into one campaign plan.
+    instruction="""Use the campaign brief {campaign_brief} as authoritative for industry, constraints, budget, and preferred channels. If industry is absent, use product and audience context without inventing an industry. Synthesize the completed planning research into one campaign plan.
 
     Campaign brief: {campaign_brief}
     Use these session results:
@@ -160,6 +151,5 @@ planning_synthesizer = Agent(
 root_agent = SequentialAgent(
     name='root_agent',
     description='Marketing Campaign Planning and Strategy Agent',
-    #instruction='You are a Chief Marketing Officer. Generate a Marketing Campaign and Plan the strategy execution for the Brand Input.  Complete research before generating the plan.  Only focus on planning tasks. You do not need to generate the assets that will display the Brand',
     sub_agents = [goals_and_objectives, market_and_audience_research, position_and_value_prop, message_and_channels, budget_manager, planning_synthesizer]
 )

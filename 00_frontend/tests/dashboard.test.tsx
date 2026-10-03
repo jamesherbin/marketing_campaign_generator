@@ -19,6 +19,7 @@ function deferred<T>() { let resolve!: (value: T) => void; let reject!: (error: 
 const select = (id: string) => fireEvent.change(screen.getByLabelText('Workspace'), { target: { value: id } })
 beforeEach(() => {
   vi.resetAllMocks()
+  vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
   vi.mocked(campaignApi.workspaces).mockResolvedValue([ws('A')])
   vi.mocked(campaignApi.health).mockResolvedValue({ status: 'ok', runner_mode: 'deterministic' })
   vi.mocked(campaignApi.list).mockImplementation(async id => [campaign(id)])

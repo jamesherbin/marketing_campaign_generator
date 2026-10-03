@@ -22,7 +22,7 @@ BRIEF = dict(brand='Example', campaign_goal='Grow', target_audience=['Audience']
 
 
 @pytest_asyncio.fixture
-async def api(migrated_pool, restricted_pools):
+async def api(migrated_pool, restricted_pools, request):
     ids = {}
     owner = await migrated_pool.fetchval("INSERT INTO users (firebase_uid) VALUES ('approver') RETURNING user_id")
     ws = await migrated_pool.fetchval("INSERT INTO workspaces (name, slug, created_by_user_id) VALUES ('Main','main',$1) RETURNING workspace_id", owner)
@@ -38,7 +38,7 @@ async def api(migrated_pool, restricted_pools):
         yield restricted_pools['runtime']
     with patch('main.database_pool', test_pool), patch('main.DatabaseSettings'):
         # The default factory was captured at definition time; pass it explicitly.
-        app = create_app(database_settings_factory=lambda: None, settings_factory=lambda: Settings(_env_file=None))
+        app = create_app(database_settings_factory=lambda: None, settings_factory=lambda: Settings(campaign_runner_mode=getattr(request, 'param', 'deterministic'), _env_file=None))
         async with app.router.lifespan_context(app):
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
                 yield app, client, migrated_pool, ws, other, ids, foreign

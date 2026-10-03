@@ -213,3 +213,22 @@ test('001-R5 logout clears selection and protected page cannot reopen', async ({
   await expect(page).toHaveURL(/\/login\?returnTo=%2F/)
   expect(f.errors).toEqual([])
 })
+
+
+test('003-R1/R2 dashboard and dialog palettes persist through navigation', async ({ page }) => {
+  await fixtures(page); await open(page)
+  const selector = page.getByRole('combobox', { name: 'Theme' })
+  for (const theme of ['light', 'dark']) {
+    await selector.selectOption(theme)
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+    await page.getByRole('button', { name: 'New campaign', exact: true }).click()
+    await expect(page.getByRole('dialog')).toHaveCSS('background-color', theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(23, 23, 27)')
+    await expect(page.getByLabel('Brand', { exact: true })).toHaveCSS('color', theme === 'light' ? 'rgb(32, 32, 39)' : 'rgb(245, 243, 238)')
+    await screenshot(page, `theme-${theme}-dialog`)
+    await page.getByRole('button', { name: 'Close', exact: true }).click()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  }
+  await page.goto('/login')
+  await expect(page.getByRole('combobox', { name: 'Theme' })).toHaveValue('dark')
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+})

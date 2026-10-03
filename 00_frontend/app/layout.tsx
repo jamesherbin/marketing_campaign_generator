@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { themeInitializer } from '@/lib/theme'
 
 export const metadata: Metadata = {
   title: 'Campaign Studio',
@@ -12,7 +13,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: themeInitializer }} /></head>
       <body>
         {children}
       </body>

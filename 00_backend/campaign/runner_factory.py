@@ -4,7 +4,8 @@ import sys
 from pathlib import Path
 
 from .adk_runner import AdkRunnerAdapter
-from .config import RunnerMode
+from .config import RunnerMode, Settings
+from .adk_provider import configured_agent
 from .models import (
     DevelopmentOutput,
     ExecutionOutput,
@@ -35,7 +36,7 @@ def parse_runner_mode(value: str) -> RunnerMode:
         ) from exc
 
 
-def build_phase_runners(mode: RunnerMode) -> dict[Phase, PhaseRunner]:
+def build_phase_runners(mode: RunnerMode, *, settings: Settings | None = None) -> dict[Phase, PhaseRunner]:
     if mode == RunnerMode.DETERMINISTIC:
         return {
             Phase.PLANNING: PlanningRunner(),
@@ -43,10 +44,12 @@ def build_phase_runners(mode: RunnerMode) -> dict[Phase, PhaseRunner]:
             Phase.EXECUTION: ExecutionRunner(),
             Phase.MONITORING: MonitoringRunner(),
         }
-    return _build_adk_runners()
+    if mode == RunnerMode.ADK:
+        return _build_adk_runners(settings or Settings())
+    raise RunnerConfigurationError("Invalid runner mode; expected deterministic or adk")
 
 
-def _build_adk_runners() -> dict[Phase, PhaseRunner]:
+def _build_adk_runners(settings: Settings) -> dict[Phase, PhaseRunner]:
     # The API and agents are sibling source packages in this repository. Keep the
     # checkout runnable without requiring a repository-level packaging migration.
     project_root = Path(__file__).resolve().parents[2]
@@ -66,24 +69,24 @@ def _build_adk_runners() -> dict[Phase, PhaseRunner]:
             app_name="planning_agent",
             phase=Phase.PLANNING,
             output_model=PlanningOutput,
-            agent=planning_agent,
+            agent=configured_agent(planning_agent, settings),
         ),
         Phase.DEVELOPMENT: AdkRunnerAdapter(
             app_name="development_agent",
             phase=Phase.DEVELOPMENT,
             output_model=DevelopmentOutput,
-            agent=development_agent,
+            agent=configured_agent(development_agent, settings),
         ),
         Phase.EXECUTION: AdkRunnerAdapter(
             app_name="execution_agent",
             phase=Phase.EXECUTION,
             output_model=ExecutionOutput,
-            agent=execution_agent,
+            agent=configured_agent(execution_agent, settings),
         ),
         Phase.MONITORING: AdkRunnerAdapter(
             app_name="monitoring_agent",
             phase=Phase.MONITORING,
             output_model=MonitoringOutput,
-            agent=monitoring_agent,
+            agent=configured_agent(monitoring_agent, settings),
         ),
     }

@@ -19,7 +19,7 @@ social_media_executor = Agent(
     model='gemini-2.5-flash',
     name='social_media_executor',
     description='Social Media Executor Agent',
-    instruction='Use campaign brief {campaign_brief}, planning output {planning_output}, and development output {development_output}. Prepare the social assets for their declared channels. Do not publish. Clearly identify that human approval is required.',
+    instruction='Use the campaign brief {campaign_brief} as authoritative for industry, constraints, budget, and preferred channels. If industry is absent, use product and audience context without inventing an industry. Use campaign brief {campaign_brief}, planning output {planning_output}, and development output {development_output}. Prepare the social assets for their declared channels. Do not publish. Clearly identify that human approval is required.',
     output_key='social_media_execution',
 )
 
@@ -27,7 +27,7 @@ email_executor = Agent(
     model='gemini-2.5-flash',   
     name="email_executor",
     description="Email Executor Agent",
-    instruction="Use campaign brief {campaign_brief}, development output {development_output}, and social preparation {social_media_execution}. Prepare marketing emails for review. Do not send them. Mark every email as requiring human approval.",
+    instruction="Use the campaign brief {campaign_brief} as authoritative for industry, constraints, budget, and preferred channels. If industry is absent, use product and audience context without inventing an industry. Use campaign brief {campaign_brief}, development output {development_output}, and social preparation {social_media_execution}. Prepare marketing emails for review. Do not send them. Mark every email as requiring human approval.",
     output_key='email_execution',
 )
 
@@ -35,7 +35,7 @@ channel_coordinator = Agent(
     model='gemini-2.5-flash',
     name='channel_coordinator',
     description='Channel Coordinator Agent',
-    instruction="Coordinate the selected channels using planning output {planning_output}, development output {development_output}, social preparation {social_media_execution}, and email preparation {email_execution}. Do not submit advertising.",
+    instruction="Use the campaign brief {campaign_brief} as authoritative for industry, constraints, budget, and preferred channels. If industry is absent, use product and audience context without inventing an industry. Coordinate the selected channels using planning output {planning_output}, development output {development_output}, social preparation {social_media_execution}, and email preparation {email_execution}. Do not submit advertising.",
     output_key='channel_coordination',
 )
 
@@ -43,7 +43,7 @@ scheduler = Agent(
     model='gemini-2.5-flash',
     name='scheduler',
     description='Scheduler Agent',
-    instruction="Generate a weekly schedule using campaign brief {campaign_brief} and coordinated activities {channel_coordination}.",
+    instruction="Use the campaign brief {campaign_brief} as authoritative for industry, constraints, budget, and preferred channels. If industry is absent, use product and audience context without inventing an industry. Generate a weekly schedule using campaign brief {campaign_brief} and coordinated activities {channel_coordination}.",
     output_key='schedule',
 )
 
@@ -52,7 +52,7 @@ execution_synthesizer = Agent(
     model='gemini-2.5-flash',
     name='execution_synthesizer',
     description='Produces the canonical structured execution phase output.',
-    instruction="""Create an execution preparation package from campaign brief
+    instruction="""Use the campaign brief {campaign_brief} as authoritative for industry, constraints, budget, and preferred channels. If industry is absent, use product and audience context without inventing an industry. Create an execution preparation package from campaign brief
     {campaign_brief}, planning output {planning_output}, development output
     {development_output}, and:
     - Social preparation: {social_media_execution}

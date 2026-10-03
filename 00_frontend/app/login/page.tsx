@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import ThemeSelector from '@/app/components/theme-selector'
 import { useRouter } from 'next/navigation'
 import { inMemoryPersistence, setPersistence, signInWithPopup, signOut } from 'firebase/auth'
 import { firebaseAuth } from '@/lib/firebase-client'
@@ -41,7 +42,7 @@ export default function LoginPage() {
           <span className="brand-mark">MC</span>
           <span>Campaign Studio</span>
         </Link>
-        <p>Campaign operations, intelligently orchestrated.</p>
+        <ThemeSelector />
       </nav>
 
       <section className="login-layout">

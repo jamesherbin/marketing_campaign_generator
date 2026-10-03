@@ -3,7 +3,7 @@ import unittest
 from types import SimpleNamespace
 
 from campaign.adk_runner import AdkRunnerAdapter, AdkRunnerError
-from campaign.models import CampaignBrief, CampaignState, Phase, PlanningOutput
+from campaign.models import CampaignBrief, CampaignState, Phase, PhaseStatus, PlanningOutput, DevelopmentOutput
 
 
 class FakeSessionService:
@@ -15,11 +15,16 @@ class FakeSessionService:
         return SimpleNamespace(id="session-1")
 
 
+    async def delete_session(self, **kwargs):
+        self.deleted_with = kwargs
+
+
 class FakeEvent:
-    def __init__(self, text: str | None, final: bool = True) -> None:
+    def __init__(self, text: str | None, final: bool = True, author: str = "planning_synthesizer") -> None:
         parts = [] if text is None else [SimpleNamespace(text=text)]
         self.content = SimpleNamespace(parts=parts)
         self._final = final
+        self.author = author
 
     def is_final_response(self) -> bool:
         return self._final
@@ -88,11 +93,12 @@ class AdkRunnerAdapterTests(unittest.IsolatedAsyncioTestCase):
     async def test_exposes_completed_phase_outputs_as_named_state(self) -> None:
         campaign = state()
         campaign.planning = PlanningOutput.model_validate(planning_payload())
-        runner = FakeRunner([FakeEvent(json.dumps(planning_payload()))])
+        campaign.phase_runs[Phase.PLANNING].status = PhaseStatus.COMPLETED
+        runner = FakeRunner([FakeEvent(json.dumps(dict(creative_direction="Draft", assets=[], media_plan={})), author="development_synthesizer")])
         adapter = AdkRunnerAdapter(
-            app_name="planning_agent",
-            phase=Phase.PLANNING,
-            output_model=PlanningOutput,
+            app_name="development_agent",
+            phase=Phase.DEVELOPMENT,
+            output_model=DevelopmentOutput,
             runner=runner,
         )
 

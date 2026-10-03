@@ -25,7 +25,7 @@ channel_selection_and_media_planning = Agent(
     model='gemini-2.5-flash',
     name='channel_selection_and_media_planning',
     description='Channel Selection and Media Planning Agent',
-    instruction='You are a Marketing Channel Expert. Use campaign brief {campaign_brief} and approved planning output {planning_output}. Generate the channel and media approach without changing the approved strategy.',
+    instruction='Use the campaign brief {campaign_brief} as authoritative for industry, constraints, budget, and preferred channels. If industry is absent, use product and audience context without inventing an industry. You are a Marketing Channel Expert. Use campaign brief {campaign_brief} and completed planning output {planning_output}. Generate the channel and media approach without changing the completed strategy.',
     output_key='channel_selection_and_media_planning',
 )
 
@@ -34,16 +34,16 @@ message_and_value_prop = Agent(
     model='gemini-2.5-flash',
     name='message_and_value_prop',
     description='Message and Value Proposition Agent',
-    instruction='You are a Marketing Expert. Use campaign brief {campaign_brief}, planning output {planning_output}, and channel plan {channel_selection_and_media_planning}. Generate channel-ready messaging that preserves the approved value proposition.',
+    instruction='Use the campaign brief {campaign_brief} as authoritative for industry, constraints, budget, and preferred channels. If industry is absent, use product and audience context without inventing an industry. You are a Marketing Expert. Use campaign brief {campaign_brief}, planning output {planning_output}, and channel plan {channel_selection_and_media_planning}. Generate channel-ready messaging that preserves the planned value proposition.',
     output_key='message_and_value_prop',
 )
 
 #CONTENT DESIGN AND CREATION
 content_design_and_creation = Agent(
-    model='gemini-2.5-flash-image',
+    model='gemini-2.5-flash',
     name='content_design_and_creation',
     description='Content Design and Creation Agent',
-    instruction='You are a Content Designer. Use campaign brief {campaign_brief}, planning output {planning_output}, channel plan {channel_selection_and_media_planning}, and messaging {message_and_value_prop}. Create campaign creative that conforms to those decisions.',
+    instruction='Use the campaign brief {campaign_brief} as authoritative for industry, constraints, budget, and preferred channels. If industry is absent, use product and audience context without inventing an industry. You are a Content Designer. Use campaign brief {campaign_brief}, planning output {planning_output}, channel plan {channel_selection_and_media_planning}, and messaging {message_and_value_prop}. Create draft text assets that conform to those decisions. Describe visual concepts in words only. Do not generate binary images or claim image files were generated or stored.',
     output_key='content_design_and_creation',
 )
 
@@ -52,13 +52,13 @@ development_synthesizer = Agent(
     model='gemini-2.5-flash',
     name='development_synthesizer',
     description='Produces the canonical structured development phase output.',
-    instruction="""Create the final development package from campaign brief
-    {campaign_brief} and approved planning output {planning_output}, plus:
+    instruction="""Use the campaign brief {campaign_brief} as authoritative for industry, constraints, budget, and preferred channels. If industry is absent, use product and audience context without inventing an industry. Create the final development package from campaign brief
+    {campaign_brief} and completed planning output {planning_output}, plus:
     - Channel/media plan: {channel_selection_and_media_planning}
     - Messaging: {message_and_value_prop}
     - Creative result: {content_design_and_creation}
 
-    Produce at least one draft ContentAsset per recommended channel. Never claim
+    Produce at least one draft text ContentAsset per recommended channel, with status draft. Describe visual concepts in words only; do not claim image files were generated or stored. Never claim
     an asset was published. Return only the structured output requested by the schema.
     """,
     output_schema=DevelopmentOutput,
@@ -70,6 +70,5 @@ root_agent = SequentialAgent(
     #model='gemini-2.5-flash',
     name='root_agent',
     description='Content Development Agent',
-    #instruction='You are the Content Creation Director.  You are in the Consumer Packaged Goods Industry.  Generate a set of Content according to the results of the subagents.',
     sub_agents = [channel_selection_and_media_planning, message_and_value_prop, content_design_and_creation, development_synthesizer]
 )

@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
+import ThemeSelector from '@/app/components/theme-selector'
 import { useRouter } from 'next/navigation'
 import { campaignApi, CampaignBrief, CampaignState, Phase, RunnerMode, Workspace, CampaignApiError } from '@/lib/campaign-api'
 
@@ -93,6 +94,7 @@ export default function WorkspaceDashboard() {
   const workspace = workspaces?.find(item => item.workspace_id === active)
   return <>
     <div className="workspace-switcher">
+      <ThemeSelector />
       <label htmlFor="workspace">Workspace</label>
       <select id="workspace" value={active} onChange={event => setActive(event.target.value)} disabled={!workspaces?.length}>
         <option value="">{workspaces === null ? 'Loading workspaces…' : 'Choose a workspace'}</option>
